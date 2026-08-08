@@ -46,7 +46,7 @@ public class BookController {
         return new ApiResponse("新增書籍成功");
     }
 
-     // 修改一本書籍
+    // 修改一本書籍
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse update(@PathVariable Long id, @Valid @RequestBody BookCreateRequest request) {
@@ -54,5 +54,4 @@ public class BookController {
         repository.update(id, book);
         return new ApiResponse("修改書籍成功");
     }
-    
 }

@@ -2,17 +2,18 @@ package charlie.gtalent_spring_boot_260801.repository;
 
 import java.util.ArrayList;
 import java.util.List;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
-import charlie.gtalent_spring_boot_260801.entity.Book;
-import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 
-import org.springframework.stereotype.Repository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
+import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
+import charlie.gtalent_spring_boot_260801.entity.Book;
+import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 @Repository
 public class BookRepositoryImpl implements BookRepository {
