@@ -1,21 +1,21 @@
 package charlie.gtalent_spring_boot_260801.exception;
 
-import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
-import charlie.gtalent_spring_boot_260801.response.ApiResponse;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.util.Map;
-import java.util.TreeMap;
+import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
+import charlie.gtalent_spring_boot_260801.response.ApiResponse;
 
 // 統一處理 controller 層拋出的例外，讓 API 錯誤回應格式一致。
 @RestControllerAdvice
@@ -79,5 +79,18 @@ public class GlobalExceptionHandler {
     public ApiResponse handleException(Exception exception) {
         return new ApiResponse(ResponseMessages.getMessage(ResponseMessages.HTTP_REQUEST_FAILED));
     }
+
+    // 處理查不到指定資料，例如 GET /books/999 或 PUT /books/999。
+    @ExceptionHandler(ResourceNotFoundException.class)
+    // API 路徑存在，但是 request 指定的資料不存在，所以這裡依專案規則回 400。
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse handleResourceNotFoundException(ResourceNotFoundException exception) {
+        Map<String, String> errors = new TreeMap<>();
+        errors.put(exception.getErrorKey(), ResponseMessages.getMessage(exception.getMessageCode()));
+
+        String message = ResponseMessages.getMessage(ResponseMessages.RESOURCE_NOT_FOUND);
+        return new ApiResponse(message, errors);
+    }
+
 
 }

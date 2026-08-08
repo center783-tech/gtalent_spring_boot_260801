@@ -4,7 +4,9 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -43,4 +45,14 @@ public class BookController {
         repository.create(book);
         return new ApiResponse("新增書籍成功");
     }
+
+     // 修改一本書籍
+    @PutMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse update(@PathVariable Long id, @Valid @RequestBody BookCreateRequest request) {
+        Book book = new Book(request.getName(), request.getPrice());
+        repository.update(id, book);
+        return new ApiResponse("修改書籍成功");
+    }
+    
 }
