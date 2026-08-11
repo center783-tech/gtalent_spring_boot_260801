@@ -15,4 +15,5 @@ public interface BookRepository {
     // 修改一本書籍
     public Book update(Long id,Book book);
 
+    public Book findById(Long id);
 }

@@ -1,8 +1,10 @@
 package charlie.gtalent_spring_boot_260801.controller;
 
+import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,14 +38,20 @@ public class BookController {
         return repository.findAll();
     }
 
+    @GetMapping("/{id}")
+    public Book getBook(@PathVariable Long id) {
+    return repository.findById(id);
+}
+    
 
     // 新增一本書籍
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse create(@Valid @RequestBody BookCreateRequest request) {
+    public ResponseEntity<ApiResponse> create(@Valid @RequestBody BookCreateRequest request) {
         Book book = new Book(request.getName(), request.getPrice());
         repository.create(book);
-        return new ApiResponse("新增書籍成功");
+        URI location = URI.create("/books/" + book.getId());
+        return ResponseEntity.created(location).body(new ApiResponse("新增書籍成功"));
     }
 
     // 修改一本書籍
@@ -54,4 +62,13 @@ public class BookController {
         repository.update(id, book);
         return new ApiResponse("修改書籍成功");
     }
+//     @Bean
+//     public CommandLineRunner printEndpoints(ApplicationContext ctx) {
+//     return args -> {
+//         RequestMappingHandlerMapping mapping = ctx.getBean(RequestMappingHandlerMapping.class);
+//         mapping.getHandlerMethods().forEach((key, value) -> {
+//             System.out.println(key + " : " + value);
+//         });
+//     };
+// }
 }

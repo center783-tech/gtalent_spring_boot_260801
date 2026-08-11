@@ -13,6 +13,7 @@ import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.entity.Book;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 
 @Repository
@@ -42,6 +43,25 @@ public class BookRepositoryImpl implements BookRepository {
 
         return books;
     }
+
+    @Override
+    public Book findById(Long id) {
+    try {
+        Object result = entityManager
+                .createNativeQuery("SELECT * FROM books WHERE id = ?", Book.class)
+                .setParameter(1, id)
+                .getSingleResult();
+
+        return (Book) result;
+    } catch (NoResultException e) {
+        throw new ResourceNotFoundException("book", ResponseMessages.BOOK_NOT_FOUND);
+    } catch (RuntimeException e) {
+        throw new DataIntegrityViolationException(
+                ResponseMessages.getMessage(ResponseMessages.RESOURCE_NOT_FOUND),
+                e
+        );
+    }
+}
 
     @Override
     public Book create(Book book) {
