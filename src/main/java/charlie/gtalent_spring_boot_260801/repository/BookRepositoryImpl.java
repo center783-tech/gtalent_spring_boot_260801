@@ -1,5 +1,6 @@
 package charlie.gtalent_spring_boot_260801.repository;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,6 +31,7 @@ public class BookRepositoryImpl implements BookRepository {
         this.transactionManager = transactionManager;
     }
 
+    
     @Override
     public List<Book> findAll() {
         List<?> queryResults =  entityManager
@@ -44,13 +46,17 @@ public class BookRepositoryImpl implements BookRepository {
         return books;
     }
 
+   
+    
     @Override
     public Book findById(Long id) {
     try {
         Object result = entityManager
-                .createNativeQuery("SELECT * FROM books WHERE id = ?", Book.class)
-                .setParameter(1, id)
-                .getSingleResult();
+                .createNativeQuery("SELECT * FROM books WHERE status = ? and id = ?", Book.class)
+                .setParameter(1,1)
+                .setParameter(2, id)
+                .getSingleResult()
+                ;
 
         return (Book) result;
     } catch (NoResultException e) {
@@ -121,4 +127,51 @@ public class BookRepositoryImpl implements BookRepository {
             );
         }
     }
+
+    @Override
+    public Book findOneByName(String name) {
+        // 1代表存在, 所以要抓出status = 1
+        Object queryResult =  entityManager
+                                .createNativeQuery("SELECT * FROM books WHERE status = ? and name LIKE ?", Book.class)
+                                .setParameter(1, 1)
+                                .setParameter(2, "%" + name + "%")
+                                .getSingleResult();
+
+        return (Book) queryResult;
+    }
+
+   @Override
+    public void delete(Long id) {
+        // 確保交易能夠成功 => 如果刪除書籍失敗，會回滾交易，避免資料庫出現不一致的狀態。   
+        TransactionStatus status = transactionManager.getTransaction(new DefaultTransactionDefinition());
+        Byte off = 0;
+        try {
+            // 先查詢資料庫中是否存在該書籍，如果不存在，則拋出例外。
+            Book existingBook = entityManager.find(Book.class, id);
+            if (existingBook == null || existingBook.getStatus() == off) {
+                throw new ResourceNotFoundException("book", ResponseMessages.BOOK_NOT_FOUND);
+            }
+            
+            existingBook.setStatus(off);
+            existingBook.setDeletedAt(LocalDateTime.now());
+            // 交易成功 所以用commit 提交交易，將資料寫入資料庫。
+            transactionManager.commit(status);
+        } catch (ResourceNotFoundException exception) {
+            // 失敗 rollback：只要 update 過程出錯，就把這次 transaction 做過的資料庫操作取消。
+            transactionManager.rollback(status);
+
+            // 查不到資料不是資料庫寫入失敗，所以原樣丟出去，讓 GlobalExceptionHandler 回 400。
+            throw exception;
+        } catch (RuntimeException exception) {
+            // 失敗 rollback：只要 create 過程出錯，就把這次 transaction 做過的資料庫操作取消。
+            transactionManager.rollback(status);
+
+            // 統一丟資料寫入失敗，讓 GlobalExceptionHandler 判斷資料庫細項錯誤。
+            throw new DataIntegrityViolationException(
+                    ResponseMessages.getMessage(ResponseMessages.DATABASE_WRITE_FAILED),
+                    exception
+            );
+        }
+    }
+
 }

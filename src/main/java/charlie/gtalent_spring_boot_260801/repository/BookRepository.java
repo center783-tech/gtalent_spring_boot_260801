@@ -16,4 +16,9 @@ public interface BookRepository {
     public Book update(Long id,Book book);
 
     public Book findById(Long id);
+
+    // 軟刪除一本書籍
+    public void delete(Long id);
+
+    public Book findOneByName(String name);
 }

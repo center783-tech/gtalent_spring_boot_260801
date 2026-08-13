@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -62,6 +63,18 @@ public class BookController {
         repository.update(id, book);
         return new ApiResponse("修改書籍成功");
     }
+
+     // 軟刪除一本書籍
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse delete(@PathVariable Long id) {
+        repository.delete(id);
+        return new ApiResponse("刪除書籍成功");
+    }
+
+    
+
+
 //     @Bean
 //     public CommandLineRunner printEndpoints(ApplicationContext ctx) {
 //     return args -> {
