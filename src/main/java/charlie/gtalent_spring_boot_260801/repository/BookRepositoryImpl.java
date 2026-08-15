@@ -19,7 +19,7 @@ import jakarta.persistence.PersistenceContext;
 @Repository
 public class BookRepositoryImpl implements BookRepository {
 
-    // EntityManager 是 JPA 操作資料庫的核心工具，可以查詢、新增、更新、刪除 Entity。
+       // EntityManager 是 JPA 操作資料庫的核心工具，可以查詢、新增、更新、刪除 Entity。
     // @PersistenceContext 會請 Spring / JPA 注入目前 persistence context 對應的 EntityManager。
     @PersistenceContext
     private EntityManager entityManager;
@@ -49,6 +49,7 @@ public class BookRepositoryImpl implements BookRepository {
 
         return books;
     }
+
     @Override
     public Book findOneById(Long id) {
         // 1代表存在, 所以要抓出status = 1
@@ -85,21 +86,9 @@ public class BookRepositoryImpl implements BookRepository {
                                 .createNativeQuery("SELECT COUNT(*) FROM books WHERE status = ?")
                                 .setParameter(1, 1)
                                 .getSingleResult();
-        // 轉成long
+        // 轉成long (因為取得的是Object, 所以必須要用Class型別去接:Number, int是基本的型別:無法承接Object)
         return ((Number) queryResult).longValue();
     }
-
-    //  @Override
-    // public Book findOneByName(String name) {
-    //     // 1代表存在, 所以要抓出status = 1
-    //     Object queryResult =  entityManager
-    //                             .createNativeQuery("SELECT * FROM books WHERE status = ? and name LIKE ?", Book.class)
-    //                             .setParameter(1, 1)
-    //                             .setParameter(2, "%" + name + "%")
-    //                             .getSingleResult();
-
-    //     return (Book) queryResult;
-    // }
 
     @Override
     public Book create(Book book) {
@@ -201,6 +190,4 @@ public class BookRepositoryImpl implements BookRepository {
             );
         }
     }
-
-    
 }

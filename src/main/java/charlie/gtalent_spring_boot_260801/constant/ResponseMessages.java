@@ -16,6 +16,13 @@ public final class ResponseMessages {
     public static final String BOOK_NAME_REQUIRED       = "10001"; // 書名未填。
     public static final String BOOK_PRICE_REQUIRED      = "10002"; // 價格未填。
     public static final String BOOK_PRICE_MIN           = "10003"; // 價格小於允許的最小值。
+    public static final String MAIL_ADDRESS_REQUIRED    = "10004"; // email 未填。
+    public static final String MAIL_ADDRESS_INVALID     = "10005"; // email 格式錯誤。
+    public static final String MAIL_SUBJECT_REQUIRED    = "10006"; // 信件標題未填。
+    public static final String MAIL_SUBJECT_MAX         = "10007"; // 信件標題超過長度限制。
+    public static final String MAIL_CONTENT_REQUIRED    = "10008"; // 信件內容未填。
+    public static final String MAIL_CONTENT_MAX         = "10009"; // 信件內容超過長度限制。
+
 
     // 20000 區間：資料庫寫入相關錯誤。
     public static final String DATABASE_WRITE_FAILED    = "20000";
@@ -28,6 +35,7 @@ public final class ResponseMessages {
 
 
     public static final String BOOK_NOT_FOUND           = "40001"; // 找不到書籍。
+    public static final String MAIL_SEND_FAILED         = "50000"; // 電子郵件寄送失敗。
     
 
     private static final Map<String, String> ZH_TW_MESSAGES = createZhTwMessages();
@@ -47,6 +55,7 @@ public final class ResponseMessages {
         messages.put(NOT_FOUND,             "找不到 API");
         messages.put(BOOK_NOT_FOUND,        "找不到 書籍");
         messages.put(RESOURCE_NOT_FOUND,    "找不到 資料");
+        messages.put(MAIL_SEND_FAILED,      "電子郵件寄送失敗");
         return messages;
     }
 
