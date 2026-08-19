@@ -1,21 +1,45 @@
 package charlie.gtalent_spring_boot_260801.service;
 
+import java.util.Optional;
+
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.entity.Member;
 import charlie.gtalent_spring_boot_260801.exception.MemberAccountExcption;
+import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.repository.MemberRepository;
+import charlie.gtalent_spring_boot_260801.request.MemberPasswordUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberRegisterRequest;
 
 @Service
 public class MemberService {
     private MemberRepository repository;
+    private PasswordEncoder passwordEncoder;
 
-    public MemberService(MemberRepository repository) {
+    public MemberService(MemberRepository repository,PasswordEncoder passwordEncoder) {
         this.repository = repository;
+        this.passwordEncoder = passwordEncoder;
+
+    }
+
+    public Member findOneById(Long id){
+        // 1. 給repository找
+        Optional <Member> member = this.repository.findOneById(id);
+
+        // 2. 如果找不到
+        if(member.isEmpty()){
+            throw new ResourceNotFoundException(
+                "member",
+                ResponseMessages.MEMBER_NOT_FOUND
+            );
+        }
+        // 3. 有找到，就把 Member 拿出來
+        return member.get();
+        
     }
 
     @Transactional
@@ -37,7 +61,7 @@ public class MemberService {
             request.getGender(),
             request.getAccount(),
             request.getEmail(),
-            request.getPassword()
+            this.passwordEncoder.encode(request.getPassword())
         );
 
 
@@ -53,5 +77,27 @@ public class MemberService {
             );
         }
 
+    }
+
+    @Transactional
+    public void updatePassword(Long id, MemberPasswordUpdateRequest request) {
+        // 比對傳入的密碼跟確認密碼
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
+            throw new MemberAccountExcption("confirmPassword", ResponseMessages.MEMBER_CONFIRM_PASSWORD_NOT_MATCH);
+        }
+
+        // 1. 給repository找
+        Optional<Member> member = this.repository.findOneById(id);
+
+        // 2. 如果找不到
+        if (member.isEmpty()) {
+            throw new ResourceNotFoundException(
+                "member",
+                ResponseMessages.MEMBER_NOT_FOUND);
+        }
+        
+        // 3. 有找到，就把 Member 拿出來
+        Member targetMember = member.get();
+        targetMember.setPassword(this.passwordEncoder.encode(request.getPassword()));
     }
 }
