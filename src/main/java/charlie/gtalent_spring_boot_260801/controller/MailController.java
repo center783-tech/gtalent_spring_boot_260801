@@ -1,9 +1,13 @@
 package charlie.gtalent_spring_boot_260801.controller;
 
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import charlie.gtalent_spring_boot_260801.request.MailSendRequest;
+import charlie.gtalent_spring_boot_260801.response.ApiResponse;
 import charlie.gtalent_spring_boot_260801.service.MailService;
+import jakarta.validation.Valid;
 
 @RestController
 public class MailController {
@@ -13,14 +17,13 @@ public class MailController {
         this.mailService = mailService;
     }
 
-    @GetMapping("/mail/test")
-    public String sendEmail() {
-        mailService.sendEmail("center783@gmail.com", "Test Java Gmail", "至珉 Test Message");
-        return "Email sent successfully!";
+    @PostMapping("/send/gmail")
+    public ApiResponse sendEmail(@Valid @RequestBody MailSendRequest request) {
+        mailService.sendEmail(request.getToMailAddress(), request.getSubject(), request.getContent());
+        return new ApiResponse("寄送Gmail成功");
     }
+
+    // 練習1: 改成帶入 to、subject、text 參數 用post
+
+    // 練習2: 新增/修改/刪除書籍 寄送gmail通知 
 }
-
-
-// // 練習1: 改成帶入 to、subject、text 參數 可用post or get
-
-    // 練習2: 新增/修改/刪除書籍 寄送gmail通知
