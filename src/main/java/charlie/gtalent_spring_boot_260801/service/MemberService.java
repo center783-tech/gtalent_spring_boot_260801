@@ -1,5 +1,6 @@
 package charlie.gtalent_spring_boot_260801.service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -13,6 +14,7 @@ import charlie.gtalent_spring_boot_260801.exception.MemberAccountExcption;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.repository.MemberRepository;
 import charlie.gtalent_spring_boot_260801.request.MemberPasswordUpdateRequest;
+import charlie.gtalent_spring_boot_260801.request.MemberProfileUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberRegisterRequest;
 
 @Service
@@ -99,5 +101,49 @@ public class MemberService {
         // 3. 有找到，就把 Member 拿出來
         Member targetMember = member.get();
         targetMember.setPassword(this.passwordEncoder.encode(request.getPassword()));
+
+        
     }
+
+    @Transactional
+    public void updateProfile(Long id ,MemberProfileUpdateRequest request){
+
+        Optional<Member> member = this.repository.findOneById(id);
+
+        if (member.isEmpty()) {
+            throw new ResourceNotFoundException(
+                "member",
+                ResponseMessages.MEMBER_NOT_FOUND);
+        }
+
+        Member targetMember = member.get();
+        if (request.getEmail() != null) {
+            targetMember.setEmail(request.getEmail());
+        }
+        if (request.getName() != null) {
+            targetMember.setName(request.getName());
+        }
+        if (request.getGender() != null) {
+            targetMember.setGender(request.getGender());
+        }
+
+    }
+
+    @Transactional
+    public void delete(Long id){
+        Optional<Member> member = this.repository.findOneById(id);
+
+        Byte off = 0;
+        if (member.isEmpty()) {
+            throw new ResourceNotFoundException(
+                "member",
+                ResponseMessages.MEMBER_NOT_FOUND);
+        }
+        
+        Member targetMember = member.get();
+        targetMember.setStatus(off);
+        targetMember.setDeletedAt(LocalDateTime.now());
+
+    }
+
 }
