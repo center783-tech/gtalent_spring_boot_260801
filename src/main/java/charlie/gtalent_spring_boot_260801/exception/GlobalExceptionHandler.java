@@ -5,6 +5,7 @@ import java.util.TreeMap;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.MailException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -90,6 +91,34 @@ public class GlobalExceptionHandler {
 
         String message = ResponseMessages.getMessage(ResponseMessages.RESOURCE_NOT_FOUND);
         return new ApiResponse(message, errors);
+    }
+
+    // 處理寄信失敗，例如 SMTP 設定錯誤、帳密錯誤或 mail server 連線失敗。
+    @ExceptionHandler(MailException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse handleMailException(MailException exception) {
+        return new ApiResponse(ResponseMessages.getMessage(ResponseMessages.MAIL_SEND_FAILED));
+    }
+
+    // 處理Member錯誤，例如帳號重複或確認密碼不一致。
+    @ExceptionHandler(MemberAccountExcption.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+    public ApiResponse handleMemberAccountExcption(MemberAccountExcption exception) {
+        Map<String, String> errors = new TreeMap<>();
+        errors.put(exception.getErrorKey(), ResponseMessages.getMessage(exception.getMessageCode()));
+
+        String message = ResponseMessages.getMessage(ResponseMessages.VALIDATION_FAILED);
+        return new ApiResponse(message, errors);
+    }
+
+    // 處理Auth錯誤。
+    @ExceptionHandler(AuthException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse handleAuthException(AuthException exception) {
+        Map<String, String> errors = new TreeMap<>();
+        errors.put(exception.getErrorKey(), ResponseMessages.getMessage(exception.getMessageCode()));
+
+        return new ApiResponse(ResponseMessages.getMessage(exception.getMessageCode()), errors);
     }
 
 
