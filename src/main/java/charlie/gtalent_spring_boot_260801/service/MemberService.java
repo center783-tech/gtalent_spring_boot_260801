@@ -2,9 +2,14 @@ package charlie.gtalent_spring_boot_260801.service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +26,8 @@ import charlie.gtalent_spring_boot_260801.request.MemberLoginRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberPasswordUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberProfileUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberRegisterRequest;
+import charlie.gtalent_spring_boot_260801.response.MemberResponse;
+import charlie.gtalent_spring_boot_260801.response.PageResponse;
 import charlie.gtalent_spring_boot_260801.response.TokenResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -166,6 +173,24 @@ public class MemberService {
         targetMember.setDeletedAt(now);
         targetMember.setAccount("del_" + now.format(DELETED_ACCOUNT_TIMESTAMP_FORMAT) + "_" + targetMember.getAccount());
 
+    }
+
+    @Transactional
+    public PageResponse<MemberResponse> getAll(int page, int size) {
+
+        // Spring Data 的頁碼從 0 開始，所以如果你的 API 想讓使用者從第 1 頁開始輸入
+        // 這裡可以做 page - 1 的轉換
+        Pageable pageable = PageRequest.of(page - 1, size);
+
+        Page<Member> memberPage = this.repository.findAllActive(pageable);
+        List<MemberResponse> content = memberPage.getContent()
+            .stream()
+            .map(MemberResponse::new)
+            .collect(Collectors.toList());
+
+
+        return new PageResponse<>(content,page,size,memberPage.getTotalElements()
+        );
     }
 
     @Transactional

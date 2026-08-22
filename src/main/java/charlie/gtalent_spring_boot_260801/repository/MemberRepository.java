@@ -2,6 +2,8 @@ package charlie.gtalent_spring_boot_260801.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,6 +27,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 找出單一會員By Id
     public Optional<Member> findOneById(@Param("id") long id);
 
+    
 
     // 會員登入用 account 查詢，status = 1 才能登入。
     @Query(
@@ -34,4 +37,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     public Optional<Member> findOneByAccountAndStatus(
             @Param("account") String account
     );
+
+    @Query(
+        value = "SELECT * FROM members WHERE status = 1",
+        countQuery = "SELECT count(*) FROM members WHERE status = 1",
+        nativeQuery = true
+    )
+    Page<Member> findAllActive(Pageable pageable);
+    
 }
