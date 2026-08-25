@@ -17,7 +17,6 @@ import charlie.gtalent_spring_boot_260801.request.MemberPasswordUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberProfileUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberRegisterRequest;
 import charlie.gtalent_spring_boot_260801.request.TokenLogoutRequest;
-import charlie.gtalent_spring_boot_260801.request.TokenRefreshRequest;
 import charlie.gtalent_spring_boot_260801.response.ApiResponse;
 import charlie.gtalent_spring_boot_260801.response.MemberResponse;
 import charlie.gtalent_spring_boot_260801.response.PageResponse;
@@ -78,18 +77,13 @@ public class MemberController {
         return memberService.login(request);
     }
 
-    @PostMapping("/refresh")
-    @ResponseStatus(HttpStatus.OK)
-    public TokenResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
-        return memberService.refresh(request.getRefreshToken());
-    }
-
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse logout(@Valid @RequestBody TokenLogoutRequest request) {
         memberService.logout(request.getRefreshToken());
         return new ApiResponse("會員登出成功");
     }
+
     // 取得所有的會員
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
