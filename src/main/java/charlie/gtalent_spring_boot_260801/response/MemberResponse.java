@@ -1,7 +1,5 @@
 package charlie.gtalent_spring_boot_260801.response;
 
-import java.time.LocalDateTime;
-
 import charlie.gtalent_spring_boot_260801.entity.Member;
 import lombok.Getter;
 
@@ -12,9 +10,9 @@ public class MemberResponse {
     private Byte gender;
     private String account;
     private String email;
-    private Byte status;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    // private Byte status;
+    // private LocalDateTime createdAt;
+    // private LocalDateTime updatedAt;
 
     public MemberResponse(Member member) {
         this.id = member.getId();
@@ -22,8 +20,8 @@ public class MemberResponse {
         this.gender = member.getGender();
         this.account = member.getAccount();
         this.email = member.getEmail();
-        this.status = member.getStatus();
-        this.createdAt = member.getCreatedAt();
-        this.updatedAt = member.getUpdatedAt();
+        // this.status = member.getStatus();
+        // this.createdAt = member.getCreatedAt();
+        // this.updatedAt = member.getUpdatedAt();
     }
 }

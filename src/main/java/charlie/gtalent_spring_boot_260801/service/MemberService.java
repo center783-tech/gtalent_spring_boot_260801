@@ -2,9 +2,14 @@ package charlie.gtalent_spring_boot_260801.service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +26,9 @@ import charlie.gtalent_spring_boot_260801.request.MemberLoginRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberPasswordUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberProfileUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberRegisterRequest;
+import charlie.gtalent_spring_boot_260801.response.MemberResponse;
+import charlie.gtalent_spring_boot_260801.response.PageResponse;
 import charlie.gtalent_spring_boot_260801.response.TokenResponse;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtException;
 
 @Service
 public class MemberService {
@@ -169,6 +173,24 @@ public class MemberService {
     }
 
     @Transactional
+    public PageResponse<MemberResponse> getAll(int page, int size) {
+
+        // Spring Data 的頁碼從 0 開始，所以如果你的 API 想讓使用者從第 1 頁開始輸入
+        // 這裡可以做 page - 1 的轉換
+        Pageable pageable = PageRequest.of(page - 1, size);
+
+        Page<Member> memberPage = this.repository.findAllActive(pageable);
+        List<MemberResponse> content = memberPage.getContent()
+            .stream()
+            .map(MemberResponse::new)
+            .collect(Collectors.toList());
+
+
+        return new PageResponse<>(content,page,size,memberPage.getTotalElements()
+        );
+    }
+
+    @Transactional
     public TokenResponse login(MemberLoginRequest request) {
         String account = request.getAccount().trim();
         Member member = repository.findOneByAccountAndStatus(account)
@@ -179,60 +201,9 @@ public class MemberService {
             throw new MemberAccountExcption("password", ResponseMessages.MEMBER_LOGIN_FAILED);
         }
 
-        return createAndSaveToken(AuthOwnerTypes.MEMBER, member.getId());
-    }
-
-    @Transactional
-    public TokenResponse refresh(String refreshToken) {
-        // refresh token 還有效時，撤銷舊紀錄並建立一組新 access/refresh token。
-        Claims claims = parseRefreshToken(refreshToken);
-        String ownerType = claims.get("ownerType", String.class);
-        String tokenType = claims.get("tokenType", String.class);
-
-        if (!AuthOwnerTypes.MEMBER.equals(ownerType) || !"refresh".equals(tokenType)) {
-            throw new MemberAccountExcption("refreshToken", ResponseMessages.TOKEN_INVALID);
-        }
-
-        String refreshTokenHash = jwtService.hashToken(refreshToken);
-        AuthToken authToken = authTokenRepository
-                .findActiveByRefreshTokenHashAndOwnerType(refreshTokenHash, AuthOwnerTypes.MEMBER)
-                .orElseThrow(() -> new MemberAccountExcption("refreshToken", ResponseMessages.TOKEN_INVALID));
-
-        if (authToken.getRefreshExpiresAt().isBefore(LocalDateTime.now())) {
-            authToken.setRevoked(TOKEN_REVOKED);
-            throw new MemberAccountExcption("refreshToken", ResponseMessages.TOKEN_EXPIRED);
-        }
-
-        authToken.setRevoked(TOKEN_REVOKED);
-        authToken.setDeletedAt(LocalDateTime.now());
-
-        return createAndSaveToken(AuthOwnerTypes.MEMBER, authToken.getOwnerId());
-    }
-
-
-    @Transactional
-    public void logout(String refreshToken) {
-        // logout 採用軟撤銷，讓同一顆 refresh token 之後不能再換 token。
-        String refreshTokenHash = jwtService.hashToken(refreshToken);
-        authTokenRepository
-                .findActiveByRefreshTokenHashAndOwnerType(refreshTokenHash, AuthOwnerTypes.MEMBER)
-                .ifPresent(authToken -> {
-                    authToken.setRevoked(TOKEN_REVOKED);
-                    authToken.setDeletedAt(LocalDateTime.now());
-                });
-    }
-    
-
-    private String normalizeEmail(String email) {
-        if (email == null || email.isBlank()) {
-            return null;
-        }
-
-        return email.trim();
-    }
-
-    private TokenResponse createAndSaveToken(String ownerType, Long ownerId) {
-        // 發 token 後把 hash 與過期時間存 MySQL，供 logout / refresh rotation / token 檢查使用。
+        // 發 token 後把 hash 與過期時間存 MySQL，供 logout / rotation / token 檢查使用。
+        String ownerType = AuthOwnerTypes.MEMBER;
+        Long ownerId = member.getId();
         LocalDateTime accessExpiresAt = jwtService.getAccessExpiresAt();
         LocalDateTime refreshExpiresAt = jwtService.getRefreshExpiresAt();
         String accessToken = jwtService.generateAccessToken(ownerType, ownerId, accessExpiresAt);
@@ -251,13 +222,24 @@ public class MemberService {
         return new TokenResponse(accessToken, refreshToken, accessExpiresAt, refreshExpiresAt);
     }
 
-    private Claims parseRefreshToken(String refreshToken) {
-        try {
-            return jwtService.parse(refreshToken);
-        } catch (ExpiredJwtException exception) {
-            throw new MemberAccountExcption("refreshToken", ResponseMessages.TOKEN_EXPIRED);
-        } catch (JwtException | IllegalArgumentException exception) {
-            throw new MemberAccountExcption("refreshToken", ResponseMessages.TOKEN_INVALID);
+    @Transactional
+    public void logout(String refreshToken) {
+        // logout 採用軟撤銷，讓同一顆 refresh token 之後不能再換 token。
+        String refreshTokenHash = jwtService.hashToken(refreshToken);
+        AuthToken authToken = authTokenRepository
+                .findActiveByRefreshTokenHashAndOwnerType(refreshTokenHash, AuthOwnerTypes.MEMBER)
+                .orElseThrow(() -> new MemberAccountExcption("refreshToken", ResponseMessages.TOKEN_INVALID));
+
+        authToken.setRevoked(TOKEN_REVOKED);
+        authToken.setDeletedAt(LocalDateTime.now());
+    }
+    
+
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
         }
+
+        return email.trim();
     }
 }
