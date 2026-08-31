@@ -44,5 +44,15 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
         nativeQuery = true
     )
     Page<Member> findAllActive(Pageable pageable);
+
+    // 會員忘記密碼用 account or email 查詢，status = 1 才能登入。
+    @Query(
+            value = "SELECT * FROM members WHERE (account = :accountOrEmail OR email = :accountOrEmail) AND status = 1",
+            nativeQuery = true
+    )
+    public Optional<Member> findOneByAccountOrEmailAndStatus(
+            @Param("accountOrEmail") String accountOrEmail
+    );
+
     
 }
