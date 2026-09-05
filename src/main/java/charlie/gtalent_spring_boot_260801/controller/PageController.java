@@ -22,6 +22,11 @@ public class PageController {
         return "login";
     }
 
+    @GetMapping("/page/register")
+    public String registerPage() {
+        return "register";
+    }
+
     @GetMapping("/page/books")
     public String bookPage(){
         return "books";
