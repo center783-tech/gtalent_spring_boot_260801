@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>創立帳號</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #eef3f8;
+            --card: #ffffff;
+            --border: #d7e0ea;
+            --text: #1d2a35;
+            --muted: #607080;
+            --primary: #1769aa;
+            --primary-hover: #12568d;
+            --success-bg: #e3f8ee;
+            --success-text: #0b6b3a;
+            --error-bg: #ffe3e3;
+            --error-text: #9b1c1c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, "Noto Sans TC", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(23, 105, 170, 0.14), transparent 30%),
+                radial-gradient(circle at bottom right, rgba(23, 105, 170, 0.08), transparent 32%),
+                var(--bg);
+            color: var(--text);
+            display: grid;
+            place-items: center;
+            padding: 24px 16px;
+        }
+
+        main {
+            width: min(520px, 100%);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 20px 50px rgba(23, 42, 69, 0.08);
+            padding: 32px;
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: var(--primary);
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: clamp(28px, 4vw, 36px);
+            line-height: 1.15;
+        }
+
+        .subtext {
+            margin: 0 0 24px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .message,
+        .error {
+            display: none;
+            margin: 0 0 16px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            line-height: 1.6;
+        }
+
+        .message {
+            background: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        .error {
+            background: var(--error-bg);
+            color: var(--error-text);
+        }
+
+        form {
+            display: grid;
+            gap: 16px;
+        }
+
+        .field-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .two-col {
+            display: grid;
+            gap: 16px;
+        }
+
+        label {
+            display: block;
+            margin: 0 0 8px;
+            font-weight: 700;
+        }
+
+        input,
+        select {
+            width: 100%;
+            border: 1px solid #bcccdc;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 16px;
+            font-family: inherit;
+            background: #fff;
+            color: var(--text);
+        }
+
+        input:focus,
+        select:focus {
+            outline: 3px solid rgba(23, 105, 170, 0.16);
+            border-color: var(--primary);
+        }
+
+        .hint {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        button {
+            margin-top: 4px;
+            width: 100%;
+            border: 0;
+            border-radius: 10px;
+            padding: 13px 16px;
+            background: linear-gradient(180deg, var(--primary), var(--primary-hover));
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.75;
+        }
+
+        .link-row {
+            margin-top: 18px;
+            text-align: center;
+        }
+
+        a {
+            color: var(--primary);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        @media (min-width: 640px) {
+            .two-col {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <p class="eyebrow">Member Registration</p>
+    <h1>創立帳號</h1>
+    <p class="subtext">請填入基本資料完成註冊。帳號建立後，就可以直接登入使用系統。</p>
+
+    <p id="message" class="message"></p>
+    <p id="error" class="error"></p>
+
+    <form id="registerForm">
+        <div class="field-grid">
+            <div>
+                <label for="name">姓名</label>
+                <input id="name" name="name" type="text" maxlength="30" required>
+            </div>
+
+            <div class="two-col">
+                <div>
+                    <label for="account">帳號</label>
+                    <input id="account" name="account" type="text" maxlength="30" required>
+                </div>
+                <div>
+                    <label for="gender">性別</label>
+                    <select id="gender" name="gender" required>
+                        <option value="">請選擇</option>
+                        <option value="0">女性</option>
+                        <option value="1">男性</option>
+                        <option value="2">其他</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label for="email">電子郵件</label>
+                <input id="email" name="email" type="email" maxlength="128" placeholder="name@example.com">
+            </div>
+
+            <div class="two-col">
+                <div>
+                    <label for="password">密碼</label>
+                    <input id="password" name="password" type="password" minlength="6" maxlength="12" required>
+                    <p class="hint">密碼長度需介於 6 到 12 個字元。</p>
+                </div>
+                <div>
+                    <label for="confirmPassword">確認密碼</label>
+                    <input id="confirmPassword" name="confirmPassword" type="password" minlength="6" maxlength="12" required>
+                </div>
+            </div>
+        </div>
+
+        <button id="registerButton" type="button">建立帳號</button>
+    </form>
+
+    <div class="link-row">
+        <a href="/page/login">已有帳號，回登入頁</a>
+    </div>
+</main>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+    $("#registerButton").on("click", function () {
+        $("#message").hide();
+        $("#error").hide();
+
+        const password = $("#password").val();
+        const confirmPassword = $("#confirmPassword").val();
+
+        if (password !== confirmPassword) {
+            $("#error").text("密碼與確認密碼不一致").show();
+            return;
+        }
+
+        $("#registerButton").prop("disabled", true).text("建立中...");
+
+        const payload = {
+            name: $("#name").val().trim(),
+            account: $("#account").val().trim(),
+            password: password,
+            confirmPassword: confirmPassword,
+            email: $("#email").val().trim(),
+            gender: Number($("#gender").val())
+        };
+
+        $.ajax({
+            url: "/members/register",
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(payload),
+            success: function (data) {
+                $("#message").text(data.message || "帳號建立成功，稍後將前往登入頁。").show();
+                $("#registerForm")[0].reset();
+                setTimeout(function () {
+                    window.location.href = "/page/login";
+                }, 1200);
+            },
+            error: function (xhr) {
+                const data = xhr.responseJSON || {};
+                $("#error").text(data.message || "帳號建立失敗").show();
+            },
+            complete: function () {
+                $("#registerButton").prop("disabled", false).text("建立帳號");
+            }
+        });
+    });
+</script>
+</body>
+</html>
