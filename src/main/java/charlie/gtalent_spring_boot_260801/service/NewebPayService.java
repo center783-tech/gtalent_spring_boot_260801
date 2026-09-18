@@ -12,6 +12,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import charlie.gtalent_spring_boot_260801.constant.PaymentStatus;
@@ -26,6 +27,7 @@ import charlie.gtalent_spring_boot_260801.repository.PaymentRepository;
 import charlie.gtalent_spring_boot_260801.response.NewebPayPaymentFormResponse;
 import jakarta.persistence.NoResultException;
 
+@Service
 public class NewebPayService {
 
     private final PaymentRepository paymentRepository;
@@ -44,13 +46,13 @@ public class NewebPayService {
             PaymentRepository paymentRepository,
             BookOrderRepository bookOrderRepository,
             BookRepository bookRepository,
-            @Value("${newebpay.merchantId}") String merchantId,
-            @Value("${newebpay.hashKey}") String hashKey,
-            @Value("${newebpay.hashIv}") String hashIv,
+            @Value("${newebpay.merchant-id}") String merchantId,
+            @Value("${newebpay.hash-key}") String hashKey,
+            @Value("${newebpay.hash-iv}") String hashIv,
             @Value("${newebpay.version}") String version,
-            @Value("${newebpay.gatewayUrl}") String gatewayUrl,
-            @Value("${newebpay.notifyUrl}") String notifyUrl,
-            @Value("${newebpay.returnUrl}") String returnUrl) {
+            @Value("${newebpay.gateway-url}") String gatewayUrl,
+            @Value("${newebpay.notify-url}") String notifyUrl,
+            @Value("${newebpay.return-url}") String returnUrl) {
         this.paymentRepository = paymentRepository;
         this.bookOrderRepository = bookOrderRepository;
         this.bookRepository = bookRepository;
@@ -64,7 +66,7 @@ public class NewebPayService {
     }
 
     @Transactional
-    public NewebPayPaymentFormResponse createPaymentForm(Long paymentId, Long buyerMemberId) {
+    public NewebPayPaymentFormResponse createPaymentForm(Long paymentId) {
         // 產生付款表單前先確認必要設定都有填。
         validateConfig();
 
@@ -85,12 +87,11 @@ public class NewebPayService {
         // 組合字串為hashs
         String hashs = "HashKey=" + hashKey + "&" + tradeInfo + "&HashIV=" + hashIv;
 
-        // 轉成大寫
-        String HASHS = hashs.toUpperCase();
+        // 轉成大寫且加密sha256
         String tradeSha = null;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            tradeSha =  toHex(digest.digest(HASHS.getBytes(StandardCharsets.UTF_8))).toUpperCase();
+            tradeSha =  toHex(digest.digest(hashs.getBytes(StandardCharsets.UTF_8))).toUpperCase();
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }

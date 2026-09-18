@@ -17,10 +17,10 @@ import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.exception.AuthException;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.interceptor.AuthInterceptor;
-import charlie.gtalent_spring_boot_260801.response.NewebPayPaymentFormResponse;
 import charlie.gtalent_spring_boot_260801.response.BookOrderCreateResponse;
-import charlie.gtalent_spring_boot_260801.service.NewebPayService;
+import charlie.gtalent_spring_boot_260801.response.NewebPayPaymentFormResponse;
 import charlie.gtalent_spring_boot_260801.service.BookOrderService;
+import charlie.gtalent_spring_boot_260801.service.NewebPayService;
 
 @RestController
 @RequestMapping("/payments")
@@ -32,13 +32,13 @@ public class PaymentController {
         this.bookOrderService = bookOrderService;
         this.newebPayService = newebPayService;
     }
-    
+
     // 一段式建立藍新付款表單。
     // 前端按「購買」後可以直接呼叫這支 API：
     // 1. AuthInterceptor 先從 JWT 取出 buyerMemberId 並放進 request attribute。
     // 2. 這裡建立 book_orders 與 payments。
     // 3. 再立刻用新建立的 paymentId 產生藍新 MPG 表單資料。
-    @PostMapping("/{paymentId}/newebpay/form")
+    @PostMapping("books/{bookId}/newebpay/form")
     @ResponseStatus(HttpStatus.OK)
     public NewebPayPaymentFormResponse createBookOrderAndNewebPayForm(
             @PathVariable Long bookId,                           
@@ -53,8 +53,9 @@ public class PaymentController {
 
         BookOrderCreateResponse order = bookOrderService.createBookOrder(bookId, buyerMemberId);
 
-        return newebPayService.createPaymentForm(order.getPaymentId(), buyerMemberId);
+        return newebPayService.createPaymentForm(order.getPaymentId());
     }
+
 
     // 藍新 NotifyURL：付款結果的後端背景通知。
     // 這支不能要求會員 JWT，因為呼叫方是藍新伺服器，不是前端使用者。
@@ -72,4 +73,5 @@ public class PaymentController {
     public RedirectView returnFromNewebPay() {
         return new RedirectView("/page/books");
     }
+
 }
