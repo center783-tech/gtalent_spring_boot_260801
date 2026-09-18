@@ -70,8 +70,8 @@ public class PaymentController {
     // 這裡只負責把使用者導回書籍列表，不更新付款成功狀態；
     // 正式付款結果以 NotifyURL 或交易查詢 API 為準。
     @RequestMapping(value = "/newebpay/return", method = {RequestMethod.GET, RequestMethod.POST})
-    public RedirectView returnFromNewebPay() {
-        return new RedirectView("/page/books");
-    }
+public RedirectView returnFromNewebPay() {
+    return new RedirectView("/page/books");
+}
 
 }
