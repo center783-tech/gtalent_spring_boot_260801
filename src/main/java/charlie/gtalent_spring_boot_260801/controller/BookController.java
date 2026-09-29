@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import charlie.gtalent_spring_boot_260801.constant.OrderStatus;
+import charlie.gtalent_spring_boot_260801.repository.BookOrderRepository;
 import charlie.gtalent_spring_boot_260801.entity.Book;
 import charlie.gtalent_spring_boot_260801.repository.BookRepository;
 import charlie.gtalent_spring_boot_260801.request.BookCreateRequest;
@@ -29,10 +31,15 @@ public class BookController {
 
     private final BookRepository repository;
     private MailService mailService;
+    private final BookOrderRepository bookOrderRepository;
     private String toMailAddress = "center783@gmail.com";
     // 注入式
-    public BookController(BookRepository repository, MailService mailService) {
+     public BookController(
+            BookRepository repository,
+            BookOrderRepository bookOrderRepository,
+            MailService mailService) {
         this.repository = repository;
+        this.bookOrderRepository = bookOrderRepository;
         this.mailService = mailService;
     }
 
@@ -65,7 +72,7 @@ public class BookController {
         // map(BookResponse::new)：每一筆 Book 都執行 new BookResponse(book)，轉成只包含id、name、price  的 DTO。
         // toList()：把轉換後的 BookResponse 收集回 List<BookResponse>。
         List<BookResponse> bookResponses = books.stream()
-                .map(BookResponse::new)
+                .map(book -> new BookResponse(book, getPurchaseStatus(book.getId())))
                 .toList();
 
         long totalElements = repository.countAll();
@@ -74,6 +81,17 @@ public class BookController {
 
     }
 
+    private String getPurchaseStatus(Long bookId) {
+        if (bookOrderRepository.countByBookIdAndOrderStatus(bookId, OrderStatus.PAID) > 0) {
+            return OrderStatus.PAID;
+        }
+
+        if (bookOrderRepository.countByBookIdAndOrderStatus(bookId, OrderStatus.PENDING_PAYMENT) > 0) {
+            return OrderStatus.PENDING_PAYMENT;
+        }
+
+        return "AVAILABLE";
+    }
     // 取得單一書籍By Id
     @GetMapping("/search-id/{id}")
     @ResponseStatus(HttpStatus.OK)

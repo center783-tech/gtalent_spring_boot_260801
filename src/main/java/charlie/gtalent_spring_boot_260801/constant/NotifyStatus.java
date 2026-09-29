@@ -14,6 +14,9 @@ public final class NotifyStatus {
     // 重複通知或業務上不需要處理的通知。
     public static final String IGNORED = "IGNORED";
 
+    // 驗證失敗或格式不正確的通知。
+    public static final String INVALID = "INVALID";
+
     private NotifyStatus() {
     }
 }
