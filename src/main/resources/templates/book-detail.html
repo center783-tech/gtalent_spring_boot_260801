@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>書籍介紹</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, "Noto Sans TC", sans-serif;
+            background: #f4f6f8;
+            color: #1f2933;
+        }
+
+        header {
+            background: #ffffff;
+            border-bottom: 1px solid #d9e2ec;
+        }
+
+        .bar {
+            width: min(1080px, calc(100vw - 32px));
+            margin: 0 auto;
+            padding: 18px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 26px;
+        }
+
+        a {
+            color: #1769aa;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        a:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+
+        main {
+            width: min(1080px, calc(100vw - 32px));
+            margin: 28px auto;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+
+        .detail {
+            display: grid;
+            grid-template-columns: minmax(220px, 320px) 1fr;
+            gap: 32px;
+            padding: 32px;
+            background: #ffffff;
+            border: 1px solid #d9e2ec;
+            border-radius: 8px;
+        }
+
+        .cover {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #d9e2ec;
+            background: #e2e8f0;
+        }
+
+        .info h2 {
+            margin: 0 0 8px;
+            font-size: 32px;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .tagline {
+            margin: 0 0 20px;
+            color: #52606d;
+            line-height: 1.6;
+        }
+
+        .price {
+            margin: 0 0 24px;
+            font-size: 28px;
+            font-weight: 700;
+            color: #1769aa;
+        }
+
+        .info h3 {
+            margin: 28px 0 8px;
+            font-size: 18px;
+        }
+
+        .info p,
+        .info li {
+            line-height: 1.8;
+            max-width: 60ch;
+        }
+
+        .info p {
+            margin: 0;
+        }
+
+        .info ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .specs {
+            margin: 0;
+            display: grid;
+            grid-template-columns: 96px 1fr;
+            gap: 8px 16px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #edf2f7;
+            border-radius: 6px;
+        }
+
+        .specs dt {
+            color: #52606d;
+            font-weight: 700;
+        }
+
+        .specs dd {
+            margin: 0;
+        }
+
+        .message {
+            padding: 48px 32px;
+            text-align: center;
+            color: #9b1c1c;
+            background: #ffffff;
+            border: 1px solid #d9e2ec;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 720px) {
+            .detail {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+
+            .cover {
+                max-width: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div class="bar">
+        <h1>書籍介紹</h1>
+        <a href="/page/books">回書籍列表</a>
+    </div>
+</header>
+
+<main>
+    <div id="message" class="message" hidden></div>
+
+    <div id="content" hidden>
+        <a class="back" href="/page/books">&larr; 回書籍列表</a>
+        <article class="detail">
+            <img id="cover" class="cover" alt="">
+            <div class="info">
+                <h2 id="name"></h2>
+                <p id="tagline" class="tagline"></p>
+                <p id="price" class="price"></p>
+
+                <h3>內容簡介</h3>
+                <p id="summary"></p>
+
+                <h3>內容特色</h3>
+                <ul id="features"></ul>
+
+                <h3>適合讀者</h3>
+                <p id="audience"></p>
+
+                <h3>書籍資訊</h3>
+                <dl class="specs">
+                    <dt>編號</dt>
+                    <dd id="specId"></dd>
+                    <dt>書名</dt>
+                    <dd id="specName"></dd>
+                    <dt>定價</dt>
+                    <dd id="specPrice"></dd>
+                </dl>
+            </div>
+        </article>
+    </div>
+</main>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+    // 與書籍列表頁相同：沒有登入憑證就導回登入頁。
+    if (!localStorage.getItem("accessToken") || !localStorage.getItem("refreshToken")) {
+        window.location.href = "/page/login";
+    }
+
+    // 書籍介紹資料，key 是書籍 id（與資料庫 books.id 對應）。
+    // 簡介、特色、適合讀者目前是範例文字，請依實際內容修改。
+    const BOOK_INFO = {
+        1: {
+            name: "Book A",
+            price: 100,
+            tagline: "入門首選，用最短的時間掌握基本觀念。",
+            summary: "Book A 以淺顯的說明帶讀者認識核心概念，每一章都搭配簡短範例，讀完就能動手練習。適合想先建立整體輪廓、再往下深入的讀者。",
+            features: ["章節短小，每章約十分鐘可讀完", "每章附帶練習題與解答", "圖解說明，減少文字負擔"],
+            audience: "剛接觸這個主題、想從基礎開始學習的讀者。"
+        },
+        2: {
+            name: "Book B",
+            price: 200,
+            tagline: "承接基礎，進一步整理常見問題與實作方法。",
+            summary: "Book B 整理了實務上最常遇到的情境，從問題出發說明解法，並比較不同做法的優缺點。讀完後可以獨立處理大多數日常需求。",
+            features: ["以實際問題為章節主軸", "收錄常見錯誤與排除方式", "附完整範例，可直接套用"],
+            audience: "已有基礎、想把觀念運用到實際工作上的讀者。"
+        },
+        3: {
+            name: "Book-26090900015",
+            price: 150,
+            tagline: "精選主題的專題讀本，內容精簡好上手。",
+            summary: "本書聚焦單一主題，用清楚的步驟帶讀者從頭到尾完成一個小專案。篇幅精簡，適合利用零碎時間閱讀。",
+            features: ["單一專題，步驟明確", "完成後可得到一份成果作品", "篇幅精簡，方便攜帶閱讀"],
+            audience: "想用一本書完成一個小目標的讀者。"
+        },
+        4: {
+            name: "Book-26090900014",
+            price: 300,
+            tagline: "完整系統的進階教材，兼顧原理與實作。",
+            summary: "本書從原理講到實作，完整說明各個環節如何互相配合，並提供多個進階案例。適合想深入理解、而不只是照著做的讀者。",
+            features: ["原理與實作並重", "收錄多個進階案例", "每章末附延伸閱讀方向"],
+            audience: "想系統性學習並深入理解細節的讀者。"
+        },
+        5: {
+            name: "Book-26090900016",
+            price: 800,
+            tagline: "完整收錄的珍藏版，適合長期參考。",
+            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
+            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
+            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
+        }
+    };
+
+    function showMessage(text) {
+        $("#content").prop("hidden", true);
+        $("#message").text(text).prop("hidden", false);
+    }
+
+    function renderBook(id, book) {
+        const priceText = "NT$ " + Number(book.price).toLocaleString();
+
+        document.title = book.name + "｜書籍介紹";
+        $("#cover").attr({ src: `/images/books/book-${id}.svg`, alt: `${book.name} 封面` });
+        $("#name").text(book.name);
+        $("#tagline").text(book.tagline);
+        $("#price").text(priceText);
+        $("#summary").text(book.summary);
+        $("#audience").text(book.audience);
+        $("#specId").text(id);
+        $("#specName").text(book.name);
+        $("#specPrice").text(priceText);
+
+        const list = $("#features").empty();
+        book.features.forEach(function (feature) {
+            $("<li>").text(feature).appendTo(list);
+        });
+
+        $("#content").prop("hidden", false);
+    }
+
+    $(function () {
+        // 從網址取得書籍 id，例如 /page/book-detail?id=3
+        const id = new URLSearchParams(window.location.search).get("id");
+        const book = BOOK_INFO[id];
+
+        if (!book) {
+            showMessage("找不到這本書的介紹");
+            return;
+        }
+
+        renderBook(id, book);
+    });
+</script>
+</body>
+</html>

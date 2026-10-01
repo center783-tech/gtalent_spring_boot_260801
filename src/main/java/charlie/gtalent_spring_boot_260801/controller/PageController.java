@@ -45,6 +45,10 @@ public class PageController {
         return "reset-password";
     }
 
+    @GetMapping("/page/book-detail")
+    public String bookDetail() {
+       return "book-detail";
+   }
    
 
 }
