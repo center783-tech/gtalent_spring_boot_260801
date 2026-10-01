@@ -15,4 +15,6 @@ ssh `
   -i "C:\aws\JSB-2609-key8" `
   ubuntu@43.213.80.81 exit
 
-  Get-Content "C:\aws\JSB-2609-key8_ec2_known_hosts"    
+  Get-Content "C:\aws\JSB-2609-key8_ec2_known_hosts"   
+  
+   

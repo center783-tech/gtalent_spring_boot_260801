@@ -135,6 +135,34 @@
             color: #52606d;
             font-weight: 700;
         }
+
+        .book-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            color: #1769aa;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .book-link:hover {
+            text-decoration: underline;
+        }
+
+        .book-link:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+
+        .book-thumb {
+            width: 36px;
+            height: 48px;
+            object-fit: cover;
+            border-radius: 3px;
+            border: 1px solid #d9e2ec;
+            background: #e2e8f0;
+        }
     </style>
 </head>
 <body>
@@ -300,11 +328,25 @@
                 disabled: isSold || isPurchasing
             }).attr("data-book-id", book.id);
 
+            // 書名做成連結，點進去會前往這本書的介紹頁。
+            // 縮圖載入失敗時（例如該書還沒有圖片）就隱藏圖片，只留下書名。
+            const thumb = $("<img>", {
+                class: "book-thumb",
+                src: `/images/books/book-${book.id}.svg`,
+                alt: ""
+            }).on("error", function () {
+                $(this).hide();
+            });
+            const bookLink = $("<a>", {
+                class: "book-link",
+                href: `/page/book-detail?id=${encodeURIComponent(book.id)}`
+            }).append(thumb).append($("<span>").text(book.name));
+
             // 使用 jQuery 建立 <tr> 和 <td>，再把文字放進每個欄位。
             // .text(...) 會把內容當成純文字，可以避免 HTML 被直接插入頁面。
             $("<tr>")
                 .append($("<td>").text(book.id))
-                .append($("<td>").text(book.name))
+                .append($("<td>").append(bookLink))
                 .append($("<td>").addClass("price").text(book.price))
                 .append($("<td>").addClass("action").append(buyButton))
                 .appendTo(body);
