@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,12 +13,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.view.RedirectView;
 
+import java.util.List;
+
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.exception.AuthException;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.interceptor.AuthInterceptor;
 import charlie.gtalent_spring_boot_260801.response.BookOrderCreateResponse;
 import charlie.gtalent_spring_boot_260801.response.NewebPayPaymentFormResponse;
+import charlie.gtalent_spring_boot_260801.response.NewebPayTradeQueryResponse;
 import charlie.gtalent_spring_boot_260801.service.BookOrderService;
 import charlie.gtalent_spring_boot_260801.service.NewebPayService;
 
@@ -57,6 +61,22 @@ public class PaymentController {
     }
 
 
+    // 購物車結帳：把購物車裡所有的書合成一張訂單、一筆付款，再產生藍新付款表單。
+    // 建立成功後購物車會被清空；庫存不足或書籍已下架時整張訂單都不會建立，購物車內容保留。
+    @PostMapping("cart/newebpay/form")
+    @ResponseStatus(HttpStatus.OK)
+    public NewebPayPaymentFormResponse createCartOrderAndNewebPayForm(
+            @RequestAttribute(name = AuthInterceptor.AUTH_MEMBER_ID_ATTRIBUTE, required = false) Long buyerMemberId) {
+        if (buyerMemberId == null) {
+            throw new AuthException("token", ResponseMessages.TOKEN_INVALID);
+        }
+
+        BookOrderCreateResponse order = bookOrderService.createOrderFromCart(buyerMemberId);
+
+        return newebPayService.createPaymentForm(order.getPaymentId());
+    }
+
+
     // 藍新 NotifyURL：付款結果的後端背景通知。
     // 這支不能要求會員 JWT，因為呼叫方是藍新伺服器，不是前端使用者。
     // service 會先保存原始通知，再驗證 TradeSha、解密 TradeInfo，最後更新付款與訂單狀態。
@@ -64,6 +84,27 @@ public class PaymentController {
     @ResponseStatus(HttpStatus.OK)
     public String notifyNewebPay(@RequestBody String rowBody) {
        return newebPayService.handleNotify(rowBody);
+    }
+
+    @GetMapping("/newebpay/query/{paymentId}")
+    @ResponseStatus(HttpStatus.OK)
+    public NewebPayTradeQueryResponse queryNewebPayTrade(
+            @PathVariable Long paymentId,
+            @RequestAttribute(name = AuthInterceptor.AUTH_MEMBER_ID_ATTRIBUTE, required = false) Long memberId) {
+        if (memberId == null) {
+            throw new AuthException("token", ResponseMessages.TOKEN_INVALID);
+        }
+        return newebPayService.queryPaymentStatus(paymentId, memberId);
+    }
+
+    @GetMapping("/newebpay/query-pending")
+    @ResponseStatus(HttpStatus.OK)
+    public List<NewebPayTradeQueryResponse> queryStalePendingTrades(
+            @RequestAttribute(name = AuthInterceptor.AUTH_MEMBER_ID_ATTRIBUTE, required = false) Long memberId) {
+        if (memberId == null) {
+            throw new AuthException("token", ResponseMessages.TOKEN_INVALID);
+        }
+        return newebPayService.queryStalePendingPayments(memberId);
     }
 
     // 藍新 ReturnURL：付款完成後，使用者瀏覽器被導回的入口。

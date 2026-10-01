@@ -184,13 +184,49 @@
             border: 1px solid #d9e2ec;
             background: #e2e8f0;
         }
+
+        .bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .cart-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #1769aa;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .cart-link:hover {
+            text-decoration: underline;
+        }
+
+        .cart-count {
+            min-width: 20px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .success {
+            color: #0b6b3a;
+        }
     </style>
 </head>
 <body>
 <header>
     <div class="bar">
         <h1>書籍列表</h1>
-        <button id="logoutButton" type="button">登出</button>
+        <div class="bar-actions">
+            <a class="cart-link" href="/page/cart">購物車 <span id="cartCount" class="cart-count">0</span></a>
+            <button id="logoutButton" type="button">登出</button>
+        </div>
     </div>
 </header>
 
@@ -293,6 +329,18 @@
     // currentPage 決定目前頁碼，pageSize 決定每頁顯示幾筆。
     function loadBooks() {
         const pageSize = $("#pageSize").val();
+
+        // On every books-page reload, refresh only stale pending payments on the server.
+        const paymentQuery = apiAjax({
+            url: "/payments/newebpay/query-pending",
+            method: "GET"
+        });
+        if (paymentQuery) {
+            paymentQuery.done(function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+            });
+        }
+
         const request = apiAjax({
             url: `/books?page=${currentPage}&size=${pageSize}`,
             method: "GET"
@@ -357,7 +405,7 @@
             const buyButton = $("<button>", {
                 type: "button",
                 class: "buy-button",
-                text: soldOut ? "已售完" : "購買",
+                text: soldOut ? "已售完" : "加入購物車",
                 disabled: soldOut
             }).attr("data-book-id", book.id);
 
@@ -389,7 +437,7 @@
         // 有資料時隱藏訊息區，並顯示書籍表格。
         // 如果剛才購買失敗，列表重畫後還是要讓使用者看到原因；否則隱藏訊息區。
         if (pendingError) {
-            $("#message").text(pendingError).addClass("error").prop("hidden", false);
+            $("#message").text(pendingError).removeClass("success").addClass("error").prop("hidden", false);
             pendingError = null;
         } else {
             $("#message").prop("hidden", true);
@@ -397,92 +445,78 @@
         $("#booksTable").prop("hidden", false);
     }
 
-    // 點擊購買後，以 AJAX 向本站後端建立訂單並取得藍新 MPG 表單資料。
-    $("#booksBody").on("click", ".buy-button", function () {
-        const button = $(this);
-        const bookId = button.attr("data-book-id");
-        const accessToken = getAccessToken();
-        const refreshToken = getRefreshToken();
+    // 在列表上方顯示訊息：成功是綠色，失敗是紅色。
+    function showListMessage(text, isError) {
+        $("#message").text(text).toggleClass("error", isError).toggleClass("success", !isError).prop("hidden", false);
+    }
 
-        if (!accessToken || !refreshToken) {
-            window.location.href = "/page/login";
+    // 右上角購物車的總本數。
+    function refreshCartCount() {
+        const request = apiAjax({ url: "/cart", method: "GET" });
+        if (!request) {
             return;
         }
 
-        // 取得這一列選的購買數量，必須是 1 到庫存之間的整數。
+        request.done(function (cart, textStatus, xhr) {
+            saveNewTokens(xhr);
+            $("#cartCount").text(cart.totalQuantity);
+        });
+    }
+
+    // 點擊「加入購物車」：把這一列選的數量加進購物車（不會扣庫存，結帳時才扣）。
+    $("#booksBody").on("click", ".buy-button", function () {
+        const button = $(this);
+        const bookId = Number(button.attr("data-book-id"));
+
+        // 取得這一列選的數量，必須是 1 到庫存之間的整數。
         const qtyInput = button.closest("tr").find(".qty-input");
         const quantity = parseInt(qtyInput.val(), 10);
         const maxQuantity = parseInt(qtyInput.attr("max"), 10);
         if (!Number.isInteger(quantity) || quantity < 1 || quantity > maxQuantity) {
-            $("#message").text(`請輸入 1 到 ${maxQuantity} 之間的數量`).addClass("error").prop("hidden", false);
+            showListMessage(`請輸入 1 到 ${maxQuantity} 之間的數量`, true);
             return;
         }
 
-        button.prop("disabled", true).text("購買中");
+        button.prop("disabled", true).text("加入中");
 
-        // 寫法與 login.html 相同，直接使用 jQuery $.ajax 的 callbacks。
-        $.ajax({
-            url: `/payments/books/${bookId}/newebpay/form?quantity=${quantity}`,
+        const request = apiAjax({
+            url: "/cart/items",
             method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "X-Refresh-Token": refreshToken
-            },
-            success: function (data, textStatus, xhr) {
-                saveNewTokens(xhr);
-                submitNewebPayForm(data);
-            },
-            error: function (xhr) {
-                saveNewTokens(xhr);
-                const data = xhr.responseJSON || {};
-                const bookError = data.errors && data.errors.book;
-                const errorMessage = bookError || data.message || "建立付款資料失敗";
+            contentType: "application/json",
+            data: JSON.stringify({ bookId: bookId, quantity: quantity })
+        });
+        if (!request) {
+            return;
+        }
 
-                $("#message").text(errorMessage).addClass("error").prop("hidden", false);
+        request
+            .done(function (cart, textStatus, xhr) {
+                saveNewTokens(xhr);
+                $("#cartCount").text(cart.totalQuantity);
+                showListMessage("已加入購物車", false);
+                button.prop("disabled", false).text("加入購物車");
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+
+                const data = xhr.responseJSON || {};
+                const firstError = data.errors && typeof data.errors === "object" ? Object.values(data.errors)[0] : null;
+                const errorMessage = firstError || data.message || "加入購物車失敗";
 
                 // 庫存不足：重新讀取列表顯示最新庫存；其他錯誤允許使用者稍後重試。
                 if (errorMessage.includes("庫存不足")) {
                     pendingError = errorMessage;
                     loadBooks();
                 } else {
-                    button.prop("disabled", false).text("購買");
+                    showListMessage(errorMessage, true);
+                    button.prop("disabled", false).text("加入購物車");
                 }
-            }
-        });
+            });
     });
-
-    // 藍新 MPG 需要瀏覽器用 form POST 導向 gateway；表單資料本身由前一步 AJAX 取得。
-    function submitNewebPayForm(paymentForm) {
-        if (!paymentForm.gatewayUrl || !paymentForm.merchantId
-                || !paymentForm.version || !paymentForm.tradeInfo || !paymentForm.tradeSha) {
-            $("#message").text("付款表單資料不完整").addClass("error").prop("hidden", false);
-            loadBooks();
-            return;
-        }
-
-        const form = $("<form>", {
-            method: "POST",
-            action: paymentForm.gatewayUrl
-        }).css("display", "none");
-
-        const fields = {
-            MerchantID: paymentForm.merchantId,
-            Version: paymentForm.version,
-            TradeInfo: paymentForm.tradeInfo,
-            TradeSha: paymentForm.tradeSha
-        };
-
-        $.each(fields, function (name, value) {
-            form.append($("<input>", {
-                type: "hidden",
-                name: name,
-                value: value
-            }));
-        });
-
-        form.appendTo(document.body);
-        form.trigger("submit");
-    }
 
     // 更新分頁區塊的文字與按鈕狀態。
     function renderPager(data) {
@@ -552,7 +586,10 @@
     });
 
     // 頁面載入完成後自動執行 loadBooks，取得第一頁書籍資料。
-    $(loadBooks);
+    $(function () {
+        loadBooks();
+        refreshCartCount();
+    });
 </script>
 </body>
 </html>

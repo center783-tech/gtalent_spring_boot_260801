@@ -41,6 +41,8 @@ public final class ResponseMessages {
     public static final String PASSWORD_RESET_TOKEN_REQUIRED = "10026"; // 重設密碼 token 未填。
     public static final String BOOK_STOCK_MIN           = "10027"; // 庫存小於 0。
     public static final String ORDER_QUANTITY_INVALID   = "10028"; // 購買數量小於 1。
+    public static final String CART_BOOK_ID_REQUIRED    = "10029"; // 購物車：書籍 id 未填。
+    public static final String CART_QUANTITY_REQUIRED   = "10030"; // 購物車：數量未填。
 
 
     // 20000 區間：資料庫寫入相關錯誤。
@@ -62,6 +64,8 @@ public final class ResponseMessages {
     public static final String PASSWORD_RESET_TOKEN_INVALID = "40007"; // 重設密碼 token 不合法或已過期。
     public static final String BOOK_ALREADY_SOLD        = "40008"; // 書籍已賣出。
     public static final String BOOK_OUT_OF_STOCK        = "40009"; // 書籍庫存不足。
+    public static final String CART_ITEM_NOT_FOUND      = "40010"; // 購物車沒有這個商品。
+    public static final String CART_EMPTY               = "40011"; // 購物車是空的。
 
     public static final String MAIL_SEND_FAILED         = "50000"; // 電子郵件寄送失敗。
     
@@ -117,6 +121,10 @@ public final class ResponseMessages {
         messages.put(BOOK_STOCK_MIN,        "庫存不可小於 0");
         messages.put(ORDER_QUANTITY_INVALID, "購買數量必須大於等於 1");
         messages.put(BOOK_OUT_OF_STOCK,     "書籍庫存不足");
+        messages.put(CART_BOOK_ID_REQUIRED, "書籍 id 必填");
+        messages.put(CART_QUANTITY_REQUIRED, "數量必填");
+        messages.put(CART_ITEM_NOT_FOUND,   "購物車沒有這個商品");
+        messages.put(CART_EMPTY,            "購物車是空的");
         return messages;
     }
 

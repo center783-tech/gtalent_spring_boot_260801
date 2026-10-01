@@ -239,13 +239,82 @@
                 max-width: 320px;
             }
         }
+
+        .bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .cart-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #1769aa;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .cart-link:hover {
+            text-decoration: underline;
+        }
+
+        .cart-count {
+            min-width: 20px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .cart-button {
+            min-width: 140px;
+            padding: 11px 20px;
+            border: 2px solid #2563eb;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #2563eb;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .cart-button:hover:not(:disabled) {
+            background: #eff6ff;
+        }
+
+        .cart-button:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        .cart-button:disabled {
+            cursor: not-allowed;
+            border-color: #e2e8f0;
+            background: #e2e8f0;
+            color: #64748b;
+        }
+
+        .cart-notice {
+            margin: 12px 0 0;
+            padding: 12px;
+            border-radius: 6px;
+            background: #e3f8ee;
+            color: #0b6b3a;
+            max-width: 60ch;
+        }
     </style>
 </head>
 <body>
 <header>
     <div class="bar">
         <h1>書籍介紹</h1>
-        <a href="/page/books">回書籍列表</a>
+        <div class="bar-actions">
+            <a href="/page/books">回書籍列表</a>
+            <a class="cart-link" href="/page/cart">購物車 <span id="cartCount" class="cart-count">0</span></a>
+        </div>
     </div>
 </header>
 
@@ -265,10 +334,12 @@
                 <div class="buy-row">
                     <label class="qty-label" for="quantity">數量</label>
                     <input id="quantity" class="qty-input" type="number" min="1" value="1" disabled>
-                    <button id="buyButton" class="buy-button" type="button" disabled>購買</button>
+                    <button id="addToCartButton" class="cart-button" type="button" disabled>加入購物車</button>
+                    <button id="buyButton" class="buy-button" type="button" disabled>立即購買</button>
                     <span id="subtotal" class="subtotal"></span>
                 </div>
                 <p id="buyError" class="buy-error" role="alert" hidden></p>
+                <p id="cartNotice" class="cart-notice" role="status" hidden></p>
 
                 <h3>內容簡介</h3>
                 <p id="summary"></p>
@@ -338,24 +409,6 @@
             summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
             features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
             audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
-        },
-        6: {
-            tagline: "完整收錄的珍藏版，適合長期參考。",
-            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
-            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
-            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
-        },
-        7: {
-            tagline: "完整收錄的珍藏版，適合長期參考。",
-            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
-            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
-            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
-        },
-        8: {
-            tagline: "完整收錄的珍藏版，適合長期參考。",
-            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
-            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
-            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
         }
     };
 
@@ -382,6 +435,75 @@
     }
 
     $("#quantity").on("input", updateSubtotal);
+
+    // 右上角購物車的總本數。
+    function refreshCartCount() {
+        const request = apiAjax({ url: "/cart", method: "GET" });
+        if (!request) {
+            return;
+        }
+
+        request.done(function (cart, textStatus, xhr) {
+            saveNewTokens(xhr);
+            $("#cartCount").text(cart.totalQuantity);
+        });
+    }
+
+    // 加入購物車：把選的數量加進購物車（不會扣庫存，結帳時才扣）。
+    $("#addToCartButton").on("click", function () {
+        const button = $(this);
+        $("#buyError").prop("hidden", true);
+        $("#cartNotice").prop("hidden", true);
+
+        const quantity = parseInt($("#quantity").val(), 10);
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > currentStock) {
+            $("#buyError").text(`請輸入 1 到 ${currentStock} 之間的數量`).prop("hidden", false);
+            return;
+        }
+
+        button.prop("disabled", true).text("加入中");
+
+        const request = apiAjax({
+            url: "/cart/items",
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ bookId: Number(currentBookId), quantity: quantity })
+        });
+        if (!request) {
+            return;
+        }
+
+        request
+            .done(function (cart, textStatus, xhr) {
+                saveNewTokens(xhr);
+                $("#cartCount").text(cart.totalQuantity);
+                $("#cartNotice")
+                    .empty()
+                    .append(document.createTextNode("已加入購物車。"))
+                    .append($("<a>", { href: "/page/cart", text: "前往購物車" }))
+                    .prop("hidden", false);
+                button.prop("disabled", false).text("加入購物車");
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+
+                const data = xhr.responseJSON || {};
+                const firstError = data.errors && typeof data.errors === "object" ? Object.values(data.errors)[0] : null;
+                const errorMessage = firstError || data.message || "加入購物車失敗";
+                $("#buyError").text(errorMessage).prop("hidden", false);
+
+                // 庫存不足：重新讀取最新庫存；其他錯誤允許稍後重試。
+                if (errorMessage.includes("庫存不足")) {
+                    findBook(currentBookId, 1);
+                } else {
+                    button.prop("disabled", false).text("加入購物車");
+                }
+            });
+    });
 
     // 點擊購買：向後端建立訂單並取得藍新 MPG 表單資料（與書籍列表頁相同的 API）。
     $("#buyButton").on("click", function () {
@@ -433,7 +555,7 @@
                 if (errorMessage.includes("庫存不足")) {
                     findBook(currentBookId, 1);
                 } else {
-                    button.prop("disabled", false).text("購買");
+                    button.prop("disabled", false).text("立即購買");
                 }
             }
         });
@@ -501,7 +623,8 @@
             .prop("disabled", soldOut);
         $("#buyButton")
             .prop("disabled", soldOut)
-            .text(soldOut ? "已售完" : "購買");
+            .text(soldOut ? "已售完" : "立即購買");
+        $("#addToCartButton").prop("disabled", soldOut);
         updateSubtotal();
         $("#summary").text(info.summary);
         $("#audience").text(info.audience);
@@ -592,6 +715,7 @@
         }
 
         findBook(id, 1);
+        refreshCartCount();
     });
 </script>
 </body>

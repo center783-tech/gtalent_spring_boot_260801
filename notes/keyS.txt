@@ -6,6 +6,7 @@ icacls "C:\aws\JSB-2609-key8" /inheritance:r
 icacls "C:\aws\JSB-2609-key8"
 
 ssh -i "C:/aws/JSB-2609-key8" ubuntu@43.213.80.81
+ssh -i "C:/aws/gtalent_actions_ed25519" ubuntu@43.213.80.81
 
 
 ssh `

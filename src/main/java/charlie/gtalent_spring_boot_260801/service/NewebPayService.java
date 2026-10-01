@@ -5,8 +5,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.crypto.Cipher;
@@ -14,31 +16,33 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClient;
 
 import charlie.gtalent_spring_boot_260801.constant.NotifyStatus;
 import charlie.gtalent_spring_boot_260801.constant.OrderStatus;
 import charlie.gtalent_spring_boot_260801.constant.PaymentStatus;
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
-import charlie.gtalent_spring_boot_260801.entity.Book;
 import charlie.gtalent_spring_boot_260801.entity.BookOrder;
 import charlie.gtalent_spring_boot_260801.entity.Payment;
 import charlie.gtalent_spring_boot_260801.entity.PaymentNotification;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.repository.BookOrderRepository;
-import charlie.gtalent_spring_boot_260801.repository.BookRepository;
 import charlie.gtalent_spring_boot_260801.repository.PaymentNotificationRepository;
 import charlie.gtalent_spring_boot_260801.repository.PaymentRepository;
 import charlie.gtalent_spring_boot_260801.response.NewebPayPaymentFormResponse;
-import jakarta.persistence.NoResultException;
+import charlie.gtalent_spring_boot_260801.response.NewebPayTradeQueryResponse;
 
 @Service
 public class NewebPayService {
 
     private final PaymentRepository paymentRepository;
     private final BookOrderRepository bookOrderRepository;
-    private final BookRepository bookRepository;
+    private final BookOrderService bookOrderService;
     private final PaymentNotificationRepository paymentNotificationRepository;
     private final String merchantId;
     private final String hashKey;
@@ -47,16 +51,19 @@ public class NewebPayService {
     private final String gatewayUrl;
     private final String notifyUrl;
     private final String returnUrl;
+    private final String queryUrl;
+    private final String queryVersion;
+    private final RestClient restClient;
 
     // 訂單幾分鐘內沒付款就會被系統取消並還回庫存（與 OrderExpirationService 共用同一個設定，預設 10 分鐘）。
-    @Value("${book-order.payment-timeout-minutes:10}")
+    @Value("${book-order.payment-timeout-minutes:30}")
     private int paymentTimeoutMinutes;
 
     // 抓取application.properties裡的藍新金流設定
     public NewebPayService(
             PaymentRepository paymentRepository,
             BookOrderRepository bookOrderRepository,
-            BookRepository bookRepository,
+            BookOrderService bookOrderService,
             PaymentNotificationRepository paymentNotificationRepository,
             @Value("${newebpay.merchant-id}") String merchantId,
             @Value("${newebpay.hash-key}") String hashKey,
@@ -64,10 +71,12 @@ public class NewebPayService {
             @Value("${newebpay.version}") String version,
             @Value("${newebpay.gateway-url}") String gatewayUrl,
             @Value("${newebpay.notify-url}") String notifyUrl,
-            @Value("${newebpay.return-url}") String returnUrl) {
+            @Value("${newebpay.return-url}") String returnUrl,
+            @Value("${newebpay.query-url:}") String queryUrl,
+            @Value("${newebpay.query-version:1.3}") String queryVersion) {
         this.paymentRepository = paymentRepository;
         this.bookOrderRepository = bookOrderRepository;
-        this.bookRepository = bookRepository;
+        this.bookOrderService = bookOrderService;
         this.paymentNotificationRepository = paymentNotificationRepository;
         this.merchantId = merchantId;
         this.hashKey = hashKey;
@@ -76,6 +85,11 @@ public class NewebPayService {
         this.gatewayUrl = gatewayUrl;
         this.notifyUrl = notifyUrl;
         this.returnUrl = returnUrl;
+        this.queryUrl = queryUrl == null || queryUrl.isBlank()
+                ? gatewayUrl.replaceFirst("/MPG/mpg_gateway/?$", "/API/QueryTradeInfo")
+                : queryUrl;
+        this.queryVersion = queryVersion;
+        this.restClient = RestClient.create();
     }
 
     @Transactional
@@ -89,10 +103,11 @@ public class NewebPayService {
         BookOrder order = bookOrderRepository.findById(payment.getOrderId())
                             .orElseThrow(() -> new ResourceNotFoundException("order", ResponseMessages.RESOURCE_NOT_FOUND));
         
-        Book book = findActiveBook(order.getBookId());
+        // 藍新付款頁顯示的商品說明（一本書用書名，多本書顯示「書名 等 N 項」）。
+        String itemDesc = bookOrderService.buildItemDesc(order.getId());
 
         // 組合字串為url
-        String url = buildTradeInfo(payment, book);
+        String url = buildTradeInfo(payment, itemDesc);
 
         // url執行 AES-256-CBC (使用 PKCS7 填充)，並將結果轉換至十六進制
         String tradeInfo = encryptTradeInfo(url);
@@ -115,6 +130,120 @@ public class NewebPayService {
         paymentRepository.save(payment);
 
         return new NewebPayPaymentFormResponse(gatewayUrl, merchantId, version, tradeInfo, tradeSha);
+    }
+
+    @Transactional
+    public NewebPayTradeQueryResponse queryPaymentStatus(Long paymentId, Long memberId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("payment", ResponseMessages.RESOURCE_NOT_FOUND));
+        BookOrder order = getOwnedOrder(payment, memberId);
+        return queryAndUpdatePayment(payment, order);
+    }
+
+    @Transactional
+    public List<NewebPayTradeQueryResponse> queryStalePendingPayments(Long memberId) {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
+        List<Payment> payments = paymentRepository.findByPaymentStatusAndUpdatedAtBefore(PaymentStatus.PENDING, cutoff);
+        List<NewebPayTradeQueryResponse> responses = new ArrayList<>();
+        for (Payment payment : payments) {
+            BookOrder order = bookOrderRepository.findById(payment.getOrderId()).orElse(null);
+            if (order != null && memberId.equals(order.getBuyerMemberId())) {
+                responses.add(queryAndUpdatePayment(payment, order));
+            }
+        }
+        return responses;
+    }
+
+    private BookOrder getOwnedOrder(Payment payment, Long memberId) {
+        BookOrder order = bookOrderRepository.findById(payment.getOrderId())
+                .orElseThrow(() -> new ResourceNotFoundException("order", ResponseMessages.RESOURCE_NOT_FOUND));
+        if (!memberId.equals(order.getBuyerMemberId())) {
+            throw new ResourceNotFoundException("payment", ResponseMessages.RESOURCE_NOT_FOUND);
+        }
+        return order;
+    }
+
+    private NewebPayTradeQueryResponse queryAndUpdatePayment(Payment payment, BookOrder order) {
+        validateConfig();
+        Map<String, String> result = queryTradeInfo(payment);
+        String tradeStatus = result.get("TradeStatus");
+        if (tradeStatus == null || tradeStatus.isBlank()) {
+            throw new IllegalStateException("NewebPay query response has no TradeStatus");
+        }
+
+        applyTradeStatus(payment, order, tradeStatus);
+        payment.setProviderTradeNo(result.get("TradeNo"));
+        payment.setPaymentMethod(result.get("PaymentType"));
+        payment.setReturnMessage(result.get("Message"));
+        paymentRepository.save(payment);
+        bookOrderRepository.save(order);
+
+        return new NewebPayTradeQueryResponse(payment.getId(), payment.getMerchantOrderNo(),
+                payment.getPaymentStatus(), order.getOrderStatus(), tradeStatus,
+                payment.getProviderTradeNo(), payment.getPaymentMethod(), result.get("Message"));
+    }
+
+    private Map<String, String> queryTradeInfo(Payment payment) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("MerchantID", merchantId);
+        form.add("Version", queryVersion);
+        form.add("RespondType", "JSON");
+        form.add("TimeStamp", String.valueOf(System.currentTimeMillis() / 1000));
+        form.add("MerchantOrderNo", payment.getMerchantOrderNo());
+        form.add("Amt", String.valueOf(payment.getAmount()));
+        form.add("CheckValue", generateQueryCheckValue(payment));
+
+        Map<?, ?> response = restClient.post().uri(queryUrl)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form).retrieve().body(Map.class);
+        if (response == null || !"SUCCESS".equalsIgnoreCase(String.valueOf(response.get("Status")))) {
+            throw new IllegalStateException("NewebPay query failed: "
+                    + (response == null ? "empty response" : response.get("Message")));
+        }
+        Object rawResult = response.get("Result");
+        if (!(rawResult instanceof Map<?, ?> result)) {
+            throw new IllegalStateException("NewebPay query response has no Result");
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        result.forEach((key, value) -> values.put(String.valueOf(key), value == null ? "" : String.valueOf(value)));
+        values.put("Message", String.valueOf(response.get("Message")));
+        return values;
+    }
+
+    private String generateQueryCheckValue(Payment payment) {
+        return sha256("IV=" + hashIv + "&Amt=" + payment.getAmount()
+                + "&MerchantID=" + merchantId + "&MerchantOrderNo=" + payment.getMerchantOrderNo()).toUpperCase();
+    }
+
+    private String sha256(String source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return toHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
+    private void applyTradeStatus(Payment payment, BookOrder order, String tradeStatus) {
+        if ("1".equals(tradeStatus)) {
+            LocalDateTime paidAt = payment.getPaidAt() == null ? LocalDateTime.now() : payment.getPaidAt();
+            payment.setPaymentStatus(PaymentStatus.PAID);
+            payment.setPaidAt(paidAt);
+            order.setOrderStatus(OrderStatus.PAID);
+            order.setPaidAt(paidAt);
+        } else if ("2".equals(tradeStatus)) {
+            payment.setPaymentStatus(PaymentStatus.FAILED);
+            order.setOrderStatus(OrderStatus.FAILED);
+            bookOrderService.restoreStock(order.getId());
+        } else if ("3".equals(tradeStatus)) {
+            payment.setPaymentStatus(PaymentStatus.CANCELLED);
+            order.setOrderStatus(OrderStatus.CANCELLED);
+            bookOrderService.restoreStock(order.getId());
+        } else if ("6".equals(tradeStatus)) {
+            payment.setPaymentStatus(PaymentStatus.REFUNDED);
+        } else if (!"0".equals(tradeStatus)) {
+            throw new IllegalStateException("Unsupported NewebPay TradeStatus: " + tradeStatus);
+        }
     }
 
     @Transactional
@@ -258,8 +387,8 @@ public class NewebPayService {
             } else {
                 payment.setPaymentStatus(PaymentStatus.FAILED);
                 order.setOrderStatus(OrderStatus.FAILED);
-                // 付款失敗，把下單時保留的庫存還回去。
-                bookRepository.increaseStock(order.getBookId(), order.getQuantity());
+                // 付款失敗，把下單時保留的庫存還回去（訂單裡每一本書都要還）。
+                bookOrderService.restoreStock(order.getId());
             }
 
             // 訂單跟付款單儲存
@@ -296,7 +425,7 @@ public class NewebPayService {
     }
 
     // 組合成url
-    private String buildTradeInfo(Payment payment, Book book) {
+    private String buildTradeInfo(Payment payment, String itemDesc) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("MerchantID", merchantId);
         params.put("RespondType", "String");
@@ -304,7 +433,7 @@ public class NewebPayService {
         params.put("Version", version);
         params.put("MerchantOrderNo", payment.getMerchantOrderNo());
         params.put("Amt", String.valueOf(payment.getAmount()));
-        params.put("ItemDesc", book.getName());
+        params.put("ItemDesc", itemDesc);
         params.put("NotifyURL", notifyUrl);
         params.put("ReturnURL", returnUrl);
         params.put("TradeLimit", String.valueOf(tradeLimitSeconds()));
@@ -354,15 +483,6 @@ public class NewebPayService {
         }
 
         return padded;
-    }
-
-    // 先確認書籍存在且未被軟刪除；不存在就不要建立任何訂單或付款資料。
-    private Book findActiveBook(Long bookId) {
-        try {
-            return bookRepository.findOneById(bookId);
-        } catch (NoResultException exception) {
-            throw new ResourceNotFoundException("book", ResponseMessages.BOOK_NOT_FOUND);
-        }
     }
 
 

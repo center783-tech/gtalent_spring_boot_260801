@@ -50,5 +50,10 @@ public class PageController {
        return "book-detail";
    }
    
+    @GetMapping("/page/cart")
+    public String cart() {
+       return "cart";
+   }
+    
 
 }
