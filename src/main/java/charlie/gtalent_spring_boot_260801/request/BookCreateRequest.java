@@ -17,6 +17,18 @@ public class BookCreateRequest {
     @Min(value = 1, message = ResponseMessages.BOOK_PRICE_MIN)
     private Integer price;
 
+    // 庫存選填；新增時沒填就是 0，修改時沒填就不改庫存。
+    @Min(value = 0, message = ResponseMessages.BOOK_STOCK_MIN)
+    private Integer stock;
+
+    public Integer getStock() {
+        return this.stock;
+    }
+
+    public void setStock(Integer stock) {
+        this.stock = stock;
+    }
+
     public String getName() {
         return this.name;
     }

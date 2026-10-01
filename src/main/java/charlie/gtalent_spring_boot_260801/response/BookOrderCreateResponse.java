@@ -12,6 +12,7 @@ public class BookOrderCreateResponse {
     private String orderNo;
     private Long bookId;
     private Long buyerMemberId;
+    private Integer quantity;
     private Integer amount;
     private String orderStatus;
     private Long paymentId;
@@ -24,6 +25,7 @@ public class BookOrderCreateResponse {
         this.orderNo = order.getOrderNo();
         this.bookId = order.getBookId();
         this.buyerMemberId = order.getBuyerMemberId();
+        this.quantity = order.getQuantity();
         this.amount = order.getAmount();
         this.orderStatus = order.getOrderStatus();
         this.paymentId = payment.getId();

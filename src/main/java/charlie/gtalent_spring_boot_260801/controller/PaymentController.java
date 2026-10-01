@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.view.RedirectView;
@@ -40,6 +41,7 @@ public class PaymentController {
     @ResponseStatus(HttpStatus.OK)
     public NewebPayPaymentFormResponse createBookOrderAndNewebPayForm(
             @PathVariable Long bookId,                           
+            @RequestParam(defaultValue = "1") int quantity,
             @RequestAttribute(name = AuthInterceptor.AUTH_MEMBER_ID_ATTRIBUTE, required = false) Long buyerMemberId) {
         if (buyerMemberId == null) {
             throw new AuthException("token", ResponseMessages.TOKEN_INVALID);
@@ -49,7 +51,7 @@ public class PaymentController {
             throw new ResourceNotFoundException("book", ResponseMessages.BOOK_NOT_FOUND);
         }
 
-        BookOrderCreateResponse order = bookOrderService.createBookOrder(bookId, buyerMemberId);
+        BookOrderCreateResponse order = bookOrderService.createBookOrder(bookId, buyerMemberId, quantity);
 
         return newebPayService.createPaymentForm(order.getPaymentId());
     }

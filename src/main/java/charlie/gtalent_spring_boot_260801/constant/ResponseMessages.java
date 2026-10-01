@@ -39,6 +39,8 @@ public final class ResponseMessages {
     public static final String MEMBER_ACCOUNT_OR_EMAIL_REQUIRED = "10024";
     public static final String MEMBER_ACCOUNT_OR_EMAIL_MAX = "10025"; // 忘記密碼帳號或 email 過
     public static final String PASSWORD_RESET_TOKEN_REQUIRED = "10026"; // 重設密碼 token 未填。
+    public static final String BOOK_STOCK_MIN           = "10027"; // 庫存小於 0。
+    public static final String ORDER_QUANTITY_INVALID   = "10028"; // 購買數量小於 1。
 
 
     // 20000 區間：資料庫寫入相關錯誤。
@@ -59,6 +61,7 @@ public final class ResponseMessages {
     public static final String TOKEN_REQUIRED           = "40006"; // token 未填。
     public static final String PASSWORD_RESET_TOKEN_INVALID = "40007"; // 重設密碼 token 不合法或已過期。
     public static final String BOOK_ALREADY_SOLD        = "40008"; // 書籍已賣出。
+    public static final String BOOK_OUT_OF_STOCK        = "40009"; // 書籍庫存不足。
 
     public static final String MAIL_SEND_FAILED         = "50000"; // 電子郵件寄送失敗。
     
@@ -111,6 +114,9 @@ public final class ResponseMessages {
         messages.put(MEMBER_ACCOUNT_OR_EMAIL_MAX, "帳號或 email 不可超過 128 個字");
         messages.put(PASSWORD_RESET_TOKEN_REQUIRED, "重設密碼 token 必填");
         messages.put(PASSWORD_RESET_TOKEN_INVALID, "重設密碼連結無效或已過期");
+        messages.put(BOOK_STOCK_MIN,        "庫存不可小於 0");
+        messages.put(ORDER_QUANTITY_INVALID, "購買數量必須大於等於 1");
+        messages.put(BOOK_OUT_OF_STOCK,     "書籍庫存不足");
         return messages;
     }
 

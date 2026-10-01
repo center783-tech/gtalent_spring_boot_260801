@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
@@ -90,6 +91,28 @@ public class BookRepositoryImpl implements BookRepository {
         return ((Number) queryResult).longValue();
     }
 
+    // 用單一 UPDATE 同時「檢查並扣除」庫存，避免兩個人同時買最後一本而超賣。
+    // 這個方法會加入呼叫端的交易（例如 BookOrderService.createBookOrder）。
+    @Override
+    @Transactional
+    public int decreaseStock(Long id, int quantity) {
+        return entityManager
+                .createNativeQuery("UPDATE books SET stock = stock - :quantity WHERE id = :id AND status = 1 AND stock >= :quantity")
+                .setParameter("quantity", quantity)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
+
+    @Override
+    @Transactional
+    public int increaseStock(Long id, int quantity) {
+        return entityManager
+                .createNativeQuery("UPDATE books SET stock = stock + :quantity WHERE id = :id")
+                .setParameter("quantity", quantity)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
+
     @Override
     public Book create(Book book) {
         // 確保交易能夠成功 => 如果新增書籍失敗，會回滾交易，避免資料庫出現不一致的狀態。   
@@ -132,6 +155,10 @@ public class BookRepositoryImpl implements BookRepository {
 
             existingBook.setName(book.getName());
             existingBook.setPrice(book.getPrice());
+            // stock 為 null 代表這次修改沒有要改庫存。
+            if (book.getStock() != null) {
+                existingBook.setStock(book.getStock());
+            }
             // 交易成功 所以用commit 提交交易，將資料寫入資料庫。
             transactionManager.commit(status);
             return book;
