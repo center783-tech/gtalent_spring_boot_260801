@@ -115,6 +115,33 @@
 
         .buy-row {
             margin: 8px 0 0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .qty-label {
+            font-weight: 700;
+        }
+
+        .qty-input {
+            width: 72px;
+            padding: 11px 8px;
+            border: 1px solid #bcccdc;
+            border-radius: 6px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .qty-input:disabled {
+            background: #f1f5f9;
+            color: #94a3b8;
+        }
+
+        .subtotal {
+            color: #52606d;
+            font-weight: 700;
         }
 
         .buy-button {
@@ -236,7 +263,10 @@
                 <p id="status" class="status"></p>
 
                 <div class="buy-row">
+                    <label class="qty-label" for="quantity">數量</label>
+                    <input id="quantity" class="qty-input" type="number" min="1" value="1" disabled>
                     <button id="buyButton" class="buy-button" type="button" disabled>購買</button>
+                    <span id="subtotal" class="subtotal"></span>
                 </div>
                 <p id="buyError" class="buy-error" role="alert" hidden></p>
 
@@ -308,6 +338,24 @@
             summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
             features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
             audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
+        },
+        6: {
+            tagline: "完整收錄的珍藏版，適合長期參考。",
+            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
+            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
+            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
+        },
+        7: {
+            tagline: "完整收錄的珍藏版，適合長期參考。",
+            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
+            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
+            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
+        },
+        8: {
+            tagline: "完整收錄的珍藏版，適合長期參考。",
+            summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
+            features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
+            audience: "希望一次擁有完整內容、需要長期查閱的讀者。"
         }
     };
 
@@ -320,6 +368,20 @@
     };
 
     let currentBookId = null;
+    let currentPrice = 0;
+    let currentStock = 0;
+
+    // 依選的數量更新小計金額。
+    function updateSubtotal() {
+        const quantity = parseInt($("#quantity").val(), 10);
+        if (Number.isInteger(quantity) && quantity >= 1) {
+            $("#subtotal").text("小計 NT$ " + (currentPrice * quantity).toLocaleString());
+        } else {
+            $("#subtotal").text("");
+        }
+    }
+
+    $("#quantity").on("input", updateSubtotal);
 
     // 點擊購買：向後端建立訂單並取得藍新 MPG 表單資料（與書籍列表頁相同的 API）。
     $("#buyButton").on("click", function () {
@@ -333,10 +395,18 @@
         }
 
         $("#buyError").prop("hidden", true);
+
+        // 購買數量必須是 1 到庫存之間的整數。
+        const quantity = parseInt($("#quantity").val(), 10);
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > currentStock) {
+            $("#buyError").text(`請輸入 1 到 ${currentStock} 之間的數量`).prop("hidden", false);
+            return;
+        }
+
         button.prop("disabled", true).text("購買中");
 
         $.ajax({
-            url: `/payments/books/${currentBookId}/newebpay/form`,
+            url: `/payments/books/${currentBookId}/newebpay/form?quantity=${quantity}`,
             method: "POST",
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -359,10 +429,9 @@
 
                 $("#buyError").text(errorMessage).prop("hidden", false);
 
-                // 已售出就維持停用；其他錯誤允許稍後重試。
-                if (errorMessage.includes("已售出")) {
-                    $("#status").text("已售出").addClass("unavailable");
-                    button.prop("disabled", true).text("已售出");
+                // 庫存不足：重新讀取最新庫存（錯誤訊息會保留）；其他錯誤允許稍後重試。
+                if (errorMessage.includes("庫存不足")) {
+                    findBook(currentBookId, 1);
                 } else {
                     button.prop("disabled", false).text("購買");
                 }
@@ -407,9 +476,9 @@
     function renderBook(book) {
         const info = BOOK_INFO[book.id] || DEFAULT_INFO;
         const priceText = "NT$ " + Number(book.price).toLocaleString();
-        const purchaseStatus = book.purchaseStatus || "AVAILABLE";
-        const statusText = purchaseStatus === "PAID" ? "已售出"
-                : (purchaseStatus === "PENDING_PAYMENT" ? "購買中" : "可購買");
+        const stock = Number(book.stock) || 0;
+        const soldOut = stock < 1;
+        const statusText = soldOut ? "已售完" : `尚有庫存 ${stock} 本`;
 
         document.title = book.name + "｜書籍介紹";
         $("#cover")
@@ -418,11 +487,22 @@
         $("#name").text(book.name);
         $("#tagline").text(info.tagline).prop("hidden", !info.tagline);
         $("#price").text(priceText);
-        $("#status").text(statusText).toggleClass("unavailable", purchaseStatus !== "AVAILABLE");
+        $("#status").text(statusText).toggleClass("unavailable", soldOut);
         currentBookId = book.id;
+        currentPrice = Number(book.price);
+        currentStock = stock;
+
+        // 數量最多只能選到庫存數量；售完時停用。
+        const quantityInput = $("#quantity");
+        const currentQuantity = parseInt(quantityInput.val(), 10) || 1;
+        quantityInput
+            .attr("max", stock)
+            .val(soldOut ? 1 : Math.min(Math.max(currentQuantity, 1), stock))
+            .prop("disabled", soldOut);
         $("#buyButton")
-            .prop("disabled", purchaseStatus !== "AVAILABLE")
-            .text(purchaseStatus === "AVAILABLE" ? "購買" : statusText);
+            .prop("disabled", soldOut)
+            .text(soldOut ? "已售完" : "購買");
+        updateSubtotal();
         $("#summary").text(info.summary);
         $("#audience").text(info.audience);
         $("#specId").text(book.id);
@@ -437,44 +517,81 @@
         $("#content").prop("hidden", false);
     }
 
-    $(function () {
+    // 與 books.html 相同：統一處理需要登入的 AJAX 請求，自動補上 access token 和 refresh token。
+    function apiAjax(options) {
         const accessToken = getAccessToken();
         const refreshToken = getRefreshToken();
 
-        // 沒有登入憑證就導回登入頁（與書籍列表頁相同）。
         if (!accessToken || !refreshToken) {
             window.location.href = "/page/login";
+            return null;
+        }
+
+        const ajaxOptions = $.extend({}, options);
+        ajaxOptions.headers = $.extend({}, options.headers || {}, {
+            Authorization: `Bearer ${accessToken}`,
+            "X-Refresh-Token": refreshToken
+        });
+
+        return $.ajax(ajaxOptions);
+    }
+
+    // 與 books.html 使用同一支 GET /books 列表 API，逐頁找出指定 id 的書。
+    // 這樣不需要後端另外提供「單本書」的 API。
+    function findBook(id, page) {
+        const request = apiAjax({
+            url: `/books?page=${page}&size=50`,
+            method: "GET"
+        });
+
+        // apiAjax 回傳 null 代表沒有 token，已經導向登入頁。
+        if (!request) {
             return;
         }
 
-        // 從網址取得書籍 id，例如 /page/book-detail?id=3
-        const id = new URLSearchParams(window.location.search).get("id");
-        if (!id || !/^\d+$/.test(id)) {
-            showMessage("找不到這本書的介紹");
-            return;
-        }
-
-        $.ajax({
-            url: `/books/${id}`,
-            method: "GET",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "X-Refresh-Token": refreshToken
-            },
-            success: function (data, textStatus, xhr) {
+        request
+            .done(function (data, textStatus, xhr) {
                 saveNewTokens(xhr);
-                renderBook(data);
-            },
-            error: function (xhr) {
+
+                const books = data.content || [];
+                const book = books.find(function (item) {
+                    return String(item.id) === String(id);
+                });
+
+                if (book) {
+                    renderBook(book);
+                    return;
+                }
+
+                // 這一頁沒有，且還有下一頁就繼續找；全部找完都沒有才顯示找不到。
+                const totalPages = data.totalPages || 1;
+                if (page < totalPages) {
+                    findBook(id, page + 1);
+                } else {
+                    showMessage("找不到這本書的介紹");
+                }
+            })
+            .fail(function (xhr) {
                 saveNewTokens(xhr);
                 if (xhr.status === 401) {
                     window.location.href = "/page/login";
                     return;
                 }
                 const data = xhr.responseJSON || {};
-                showMessage(xhr.status === 404 ? "找不到這本書的介紹" : (data.message || "讀取書籍失敗"));
-            }
-        });
+                showMessage(data.message || "讀取書籍失敗");
+            });
+    }
+
+    $(function () {
+        // 從網址取得書籍 id，例如 /page/book-detail?id=3
+        const id = new URLSearchParams(window.location.search).get("id");
+
+        if (!id || !/^\d+$/.test(id)) {
+            showMessage("找不到這本書的介紹");
+            return;
+        }
+
+        findBook(id, 1);
     });
 </script>
 </body>

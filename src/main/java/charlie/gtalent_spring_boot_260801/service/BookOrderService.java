@@ -6,8 +6,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import charlie.gtalent_spring_boot_260801.constant.OrderStatus;
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.entity.Book;
 import charlie.gtalent_spring_boot_260801.entity.BookOrder;
@@ -38,20 +38,28 @@ public class BookOrderService {
             this.newebpayMerchantId = newebpayMerchantId;
         }
 
-    public BookOrderCreateResponse createBookOrder(Long bookId, Long buyerMemberId) {
+    // 整個流程在同一個交易裡：扣庫存、建立訂單、建立付款單要嘛全部成功，要嘛全部回復。
+    @Transactional
+    public BookOrderCreateResponse createBookOrder(Long bookId, Long buyerMemberId, int quantity) {
+        // 購買數量至少 1 本。
+        if (quantity < 1) {
+            throw new BookOrderException("quantity", ResponseMessages.ORDER_QUANTITY_INVALID);
+        }
+
         // 先確認書籍存在且未被軟刪除；不存在就不要建立任何訂單或付款資料。
         Book book = findActiveBook(bookId);
         
-        // 檢查書籍是否被賣掉
-        if (isBookSold(book.getId())) {
-            throw new BookOrderException("book", ResponseMessages.BOOK_ALREADY_SOLD);
+        // 下單就先保留庫存：用單一 UPDATE 同時檢查並扣除，庫存不足就扣不到（受影響筆數 0）。
+        // 付款失敗或逾時未付款時，庫存會再還回去。
+        if (bookRepository.decreaseStock(book.getId(), quantity) == 0) {
+            throw new BookOrderException("book", ResponseMessages.BOOK_OUT_OF_STOCK);
         }
 
         // 產生訂單編號，格式：B + 年月日時分秒毫秒 + 4 碼亂數。
         String orderNo = generateOrderNo();
 
-        // amount 使用下單當下的書籍價格快照，避免日後 books.price 調整影響歷史訂單金額。
-        BookOrder order = new BookOrder(orderNo, book.getId(), buyerMemberId, book.getPrice());
+        // amount 使用下單當下的書籍價格快照（單價 × 數量），避免日後 books.price 調整影響歷史訂單金額。
+        BookOrder order = new BookOrder(orderNo, book.getId(), buyerMemberId, quantity, book.getPrice() * quantity);
         // 新增訂單到資料庫
         bookOrderRepository.save(order);
 
@@ -62,10 +70,6 @@ public class BookOrderService {
         BookOrderCreateResponse response = new BookOrderCreateResponse(order, payment);
         // Set necessary fields in the response object
         return response;
-    }
-
-    public boolean isBookSold(Long bookId) {
-        return bookOrderRepository.countByBookIdAndOrderStatus(bookId, OrderStatus.PAID) > 0;
     }
 
     // 先確認書籍存在且未被軟刪除；不存在就不要建立任何訂單或付款資料。

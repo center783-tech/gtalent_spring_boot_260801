@@ -14,9 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import charlie.gtalent_spring_boot_260801.constant.OrderStatus;
 import charlie.gtalent_spring_boot_260801.entity.Book;
-import charlie.gtalent_spring_boot_260801.repository.BookOrderRepository;
 import charlie.gtalent_spring_boot_260801.repository.BookRepository;
 import charlie.gtalent_spring_boot_260801.request.BookCreateRequest;
 import charlie.gtalent_spring_boot_260801.response.ApiResponse;
@@ -31,15 +29,12 @@ public class BookController {
 
     private final BookRepository repository;
     private MailService mailService;
-    private final BookOrderRepository bookOrderRepository;
     private String toMailAddress = "center783@gmail.com";
     // 注入式
      public BookController(
             BookRepository repository,
-            BookOrderRepository bookOrderRepository,
             MailService mailService) {
         this.repository = repository;
-        this.bookOrderRepository = bookOrderRepository;
         this.mailService = mailService;
     }
 
@@ -72,7 +67,7 @@ public class BookController {
         // map(BookResponse::new)：每一筆 Book 都執行 new BookResponse(book)，轉成只包含id、name、price  的 DTO。
         // toList()：把轉換後的 BookResponse 收集回 List<BookResponse>。
         List<BookResponse> bookResponses = books.stream()
-                .map(book -> new BookResponse(book, getPurchaseStatus(book.getId())))
+                .map(BookResponse::new)
                 .toList();
 
         long totalElements = repository.countAll();
@@ -81,17 +76,6 @@ public class BookController {
 
     }
 
-    private String getPurchaseStatus(Long bookId) {
-        if (bookOrderRepository.countByBookIdAndOrderStatus(bookId, OrderStatus.PAID) > 0) {
-            return OrderStatus.PAID;
-        }
-
-        if (bookOrderRepository.countByBookIdAndOrderStatus(bookId, OrderStatus.PENDING_PAYMENT) > 0) {
-            return OrderStatus.PENDING_PAYMENT;
-        }
-
-        return "AVAILABLE";
-    }
     // 取得單一書籍By Id
     @GetMapping("/search-id/{id}")
     @ResponseStatus(HttpStatus.OK)
@@ -112,7 +96,9 @@ public class BookController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse create(@Valid @RequestBody BookCreateRequest request) {
-        Book book = new Book(request.getName(), request.getPrice());
+        // 庫存沒填就當 0 本。
+        int stock = request.getStock() == null ? 0 : request.getStock();
+        Book book = new Book(request.getName(), request.getPrice(), stock);
         repository.create(book);
         mailService.sendEmail(this.toMailAddress, "新增書籍通知", "新增書籍成功，書名：" + request.getName() + "，價格：" + request.getPrice());
         return new ApiResponse("新增書籍成功");
@@ -122,7 +108,8 @@ public class BookController {
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse update(@PathVariable Long id, @Valid @RequestBody BookCreateRequest request) {
-        Book book = new Book(request.getName(), request.getPrice());
+        // 庫存沒填（null）代表不修改庫存。
+        Book book = new Book(request.getName(), request.getPrice(), request.getStock());
         repository.update(id, book);
         mailService.sendEmail(this.toMailAddress, "修改書籍通知", "修改書籍成功，書名：" + request.getName() + "，價格：" + request.getPrice());
         return new ApiResponse("修改書籍成功");
@@ -136,5 +123,4 @@ public class BookController {
         mailService.sendEmail(this.toMailAddress, "刪除書籍通知", "刪除書籍成功，書id：" + id);
         return new ApiResponse("刪除書籍成功");
     }
-
 }

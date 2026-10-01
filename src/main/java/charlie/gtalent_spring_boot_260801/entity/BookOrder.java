@@ -33,6 +33,11 @@ public class BookOrder {
     @Column(name = "buyer_member_id", nullable = false)
     private Long buyerMemberId;
 
+    // 購買數量
+    @Column(nullable = false)
+    private Integer quantity = 1;
+
+    // 訂單總金額 = 單價 × 數量
     @Column(nullable = false)
     private Integer amount;
 
@@ -55,6 +60,11 @@ public class BookOrder {
     }
 
     public BookOrder(String orderNo, Long bookId, Long buyerMemberId, Integer amount) {
+        this(orderNo, bookId, buyerMemberId, 1, amount);
+    }
+
+    public BookOrder(String orderNo, Long bookId, Long buyerMemberId, Integer quantity, Integer amount) {
+        this.quantity = quantity;
         this.orderNo = orderNo;
         this.bookId = bookId;
         this.buyerMemberId = buyerMemberId;

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 533" width="100%" height="100%">
+  <!-- 背景與封面 -->
+  <rect width="400" height="533" fill="#183635" />
+  
+  <!-- 左側書脊條 -->
+  <rect x="0" y="0" width="28" height="533" fill="#2A5C59" />
+  
+  <!-- 右上角圖案：圓角旋轉方塊（菱形） -->
+  <g transform="translate(310, 125) rotate(45)">
+    <rect x="-65" y="-65" width="130" height="130" rx="16" fill="#2A5C59" />
+    <rect x="-38" y="-38" width="76" height="76" rx="8" fill="#DFAC43" />
+  </g>
+
+  <!-- 中間橫線 -->
+  <line x1="68" y1="308" x2="334" y2="308" stroke="#DFAC43" stroke-width="4" stroke-linecap="round" />
+
+  <!-- 左下角短橫線 -->
+  <line x1="68" y1="453" x2="148" y2="453" stroke="#A38139" stroke-width="6" stroke-linecap="round" />
+  <line x1="68" y1="469" x2="121" y2="469" stroke="#5E6754" stroke-width="6" stroke-linecap="round" />
+</svg>

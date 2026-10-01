@@ -28,4 +28,10 @@ public interface BookRepository {
     // 軟刪除一本書籍
     public void delete(Long id);
 
+    // 扣庫存：庫存足夠才會扣，回傳受影響筆數（1 = 成功，0 = 庫存不足或書籍不存在）。
+    public int decreaseStock(Long id, int quantity);
+
+    // 還庫存：付款失敗或訂單逾時取消時使用。
+    public int increaseStock(Long id, int quantity);
+
 }

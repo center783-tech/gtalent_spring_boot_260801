@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 533" width="100%" height="100%">
+  <!-- 背景與封面 -->
+  <rect width="400" height="533" fill="#1C3154" />
+  
+  <!-- 左側書脊條 -->
+  <rect x="0" y="0" width="28" height="533" fill="#2D5A88" />
+  
+  <!-- 右上角圖案：雙層六角形裝飾 -->
+  <g transform="translate(310, 125)">
+    <!-- 外層六角形 -->
+    <polygon points="0,-80 69.28,-40 69.28,40 0,80 -69.28,40 -69.28,-40" fill="#2D5A88" />
+    <!-- 內層六角形 -->
+    <polygon points="0,-45 38.97,-22.5 38.97,22.5 0,45 -38.97,22.5 -38.97,-22.5" fill="#E8B04E" />
+  </g>
+
+  <!-- 中間橫線 -->
+  <line x1="68" y1="308" x2="334" y2="308" stroke="#E8B04E" stroke-width="4" stroke-linecap="round" />
+
+  <!-- 左下角短橫線 -->
+  <line x1="68" y1="453" x2="148" y2="453" stroke="#AE8B47" stroke-width="6" stroke-linecap="round" />
+  <line x1="68" y1="469" x2="121" y2="469" stroke="#6F6D59" stroke-width="6" stroke-linecap="round" />
+</svg>

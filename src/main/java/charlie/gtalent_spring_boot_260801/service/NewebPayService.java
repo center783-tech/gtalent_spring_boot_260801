@@ -48,6 +48,10 @@ public class NewebPayService {
     private final String notifyUrl;
     private final String returnUrl;
 
+    // 訂單幾分鐘內沒付款就會被系統取消並還回庫存（與 OrderExpirationService 共用同一個設定，預設 10 分鐘）。
+    @Value("${book-order.payment-timeout-minutes:10}")
+    private int paymentTimeoutMinutes;
+
     // 抓取application.properties裡的藍新金流設定
     public NewebPayService(
             PaymentRepository paymentRepository,
@@ -229,6 +233,15 @@ public class NewebPayService {
             BookOrder order = bookOrderRepository.findById(payment.getOrderId())
                     .orElseThrow(() -> new ResourceNotFoundException("order", ResponseMessages.RESOURCE_NOT_FOUND));
 
+            // 訂單不是待付款（例如已被逾時取消、庫存已還回去），就不能再改成已付款。
+            // 這筆通知會被記錄成 FAILED，之後可以依通知紀錄人工處理退款。
+            if (!OrderStatus.PENDING_PAYMENT.equals(order.getOrderStatus())) {
+                notification.setNotifyStatus("FAILED");
+                notification.setErrorMessage("訂單狀態不是 PENDING_PAYMENT，無法更新");
+                paymentNotificationRepository.save(notification);
+                return "ERROR";
+            }
+
             // 回寫藍新回傳的 TradeNo、付款方式、回傳代碼、回傳訊息到付款單，方便查帳。
             payment.setProviderTradeNo(tradeNo);
             payment.setPaymentMethod(paymentMethod);
@@ -245,6 +258,8 @@ public class NewebPayService {
             } else {
                 payment.setPaymentStatus(PaymentStatus.FAILED);
                 order.setOrderStatus(OrderStatus.FAILED);
+                // 付款失敗，把下單時保留的庫存還回去。
+                bookRepository.increaseStock(order.getBookId(), order.getQuantity());
             }
 
             // 訂單跟付款單儲存
@@ -292,12 +307,21 @@ public class NewebPayService {
         params.put("ItemDesc", book.getName());
         params.put("NotifyURL", notifyUrl);
         params.put("ReturnURL", returnUrl);
+        params.put("TradeLimit", String.valueOf(tradeLimitSeconds()));
         String toQueryString = params.entrySet().stream()
                                 .map(entry -> entry.getKey() + "=" + entry.getValue())
                                 .reduce((a, b) -> a + "&" + b)
                                 .orElse("");
 
         return toQueryString;
+    }
+
+    // 藍新付款頁的付款時限（秒），藍新 TradeLimit 只接受 60~900。
+    // 比訂單逾時少 1 分鐘：使用者在最後一刻付款成功時，藍新的通知才有時間送達，
+    // 不會剛好撞上訂單被系統取消。
+    private int tradeLimitSeconds() {
+        int seconds = (paymentTimeoutMinutes - 1) * 60;
+        return Math.max(60, Math.min(900, seconds));
     }
 
     // 將 url 進行 AES 加密，並產生 TradeInfo
