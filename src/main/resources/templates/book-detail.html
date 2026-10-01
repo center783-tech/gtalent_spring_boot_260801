@@ -97,6 +97,62 @@
             color: #1769aa;
         }
 
+        .status {
+            display: inline-block;
+            margin: -8px 0 8px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 700;
+            background: #e3f8ee;
+            color: #0b6b3a;
+        }
+
+        .status.unavailable {
+            background: #e2e8f0;
+            color: #52606d;
+        }
+
+        .buy-row {
+            margin: 8px 0 0;
+        }
+
+        .buy-button {
+            min-width: 160px;
+            padding: 12px 24px;
+            border: 0;
+            border-radius: 6px;
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .buy-button:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+
+        .buy-button:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        .buy-button:disabled {
+            cursor: not-allowed;
+            background: #e2e8f0;
+            color: #64748b;
+        }
+
+        .buy-error {
+            margin: 12px 0 0;
+            padding: 12px;
+            border-radius: 6px;
+            background: #ffe3e3;
+            color: #9b1c1c;
+            max-width: 60ch;
+        }
+
         .info h3 {
             margin: 28px 0 8px;
             font-size: 18px;
@@ -177,6 +233,12 @@
                 <h2 id="name"></h2>
                 <p id="tagline" class="tagline"></p>
                 <p id="price" class="price"></p>
+                <p id="status" class="status"></p>
+
+                <div class="buy-row">
+                    <button id="buyButton" class="buy-button" type="button" disabled>購買</button>
+                </div>
+                <p id="buyError" class="buy-error" role="alert" hidden></p>
 
                 <h3>內容簡介</h3>
                 <p id="summary"></p>
@@ -203,49 +265,45 @@
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
-    // 與書籍列表頁相同：沒有登入憑證就導回登入頁。
-    if (!localStorage.getItem("accessToken") || !localStorage.getItem("refreshToken")) {
-        window.location.href = "/page/login";
+    function getAccessToken() { return localStorage.getItem("accessToken"); }
+    function getRefreshToken() { return localStorage.getItem("refreshToken"); }
+
+    // 後端若在 header 帶回新的 token，就存回 localStorage（與 books.html 相同）。
+    function saveNewTokens(xhr) {
+        const newAccessToken = xhr.getResponseHeader("X-New-Access-Token");
+        const newRefreshToken = xhr.getResponseHeader("X-New-Refresh-Token");
+        if (newAccessToken) { localStorage.setItem("accessToken", newAccessToken); }
+        if (newRefreshToken) { localStorage.setItem("refreshToken", newRefreshToken); }
     }
 
-    // 書籍介紹資料，key 是書籍 id（與資料庫 books.id 對應）。
-    // 簡介、特色、適合讀者目前是範例文字，請依實際內容修改。
+    // 介紹文字目前寫在前端，key 是書籍 id。書名、價格、購買狀態改由後端 API 提供。
+    // 簡介、特色、適合讀者是範例文字，請依實際內容修改。
     const BOOK_INFO = {
         1: {
-            name: "Book A",
-            price: 100,
             tagline: "入門首選，用最短的時間掌握基本觀念。",
             summary: "Book A 以淺顯的說明帶讀者認識核心概念，每一章都搭配簡短範例，讀完就能動手練習。適合想先建立整體輪廓、再往下深入的讀者。",
             features: ["章節短小，每章約十分鐘可讀完", "每章附帶練習題與解答", "圖解說明，減少文字負擔"],
             audience: "剛接觸這個主題、想從基礎開始學習的讀者。"
         },
         2: {
-            name: "Book B",
-            price: 200,
             tagline: "承接基礎，進一步整理常見問題與實作方法。",
             summary: "Book B 整理了實務上最常遇到的情境，從問題出發說明解法，並比較不同做法的優缺點。讀完後可以獨立處理大多數日常需求。",
             features: ["以實際問題為章節主軸", "收錄常見錯誤與排除方式", "附完整範例，可直接套用"],
             audience: "已有基礎、想把觀念運用到實際工作上的讀者。"
         },
         3: {
-            name: "Book-26090900015",
-            price: 150,
             tagline: "精選主題的專題讀本，內容精簡好上手。",
             summary: "本書聚焦單一主題，用清楚的步驟帶讀者從頭到尾完成一個小專案。篇幅精簡，適合利用零碎時間閱讀。",
             features: ["單一專題，步驟明確", "完成後可得到一份成果作品", "篇幅精簡，方便攜帶閱讀"],
             audience: "想用一本書完成一個小目標的讀者。"
         },
         4: {
-            name: "Book-26090900014",
-            price: 300,
             tagline: "完整系統的進階教材，兼顧原理與實作。",
             summary: "本書從原理講到實作，完整說明各個環節如何互相配合，並提供多個進階案例。適合想深入理解、而不只是照著做的讀者。",
             features: ["原理與實作並重", "收錄多個進階案例", "每章末附延伸閱讀方向"],
             audience: "想系統性學習並深入理解細節的讀者。"
         },
         5: {
-            name: "Book-26090900016",
-            price: 800,
             tagline: "完整收錄的珍藏版，適合長期參考。",
             summary: "本書是整套內容的完整版本，涵蓋基礎到進階的所有主題，並附上大量案例與速查表，適合放在手邊長期查閱。",
             features: ["完整涵蓋所有主題", "附速查表與索引", "大量案例，可作為工具書使用"],
@@ -253,27 +311,126 @@
         }
     };
 
+    // 後端有、但 BOOK_INFO 還沒寫介紹的書（例如之後新增的書），顯示這份預設內容。
+    const DEFAULT_INFO = {
+        tagline: "",
+        summary: "這本書的介紹準備中。",
+        features: [],
+        audience: "準備中"
+    };
+
+    let currentBookId = null;
+
+    // 點擊購買：向後端建立訂單並取得藍新 MPG 表單資料（與書籍列表頁相同的 API）。
+    $("#buyButton").on("click", function () {
+        const button = $(this);
+        const accessToken = getAccessToken();
+        const refreshToken = getRefreshToken();
+
+        if (!accessToken || !refreshToken) {
+            window.location.href = "/page/login";
+            return;
+        }
+
+        $("#buyError").prop("hidden", true);
+        button.prop("disabled", true).text("購買中");
+
+        $.ajax({
+            url: `/payments/books/${currentBookId}/newebpay/form`,
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "X-Refresh-Token": refreshToken
+            },
+            success: function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+                submitNewebPayForm(data);
+            },
+            error: function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+
+                const data = xhr.responseJSON || {};
+                const bookError = data.errors && data.errors.book;
+                const errorMessage = bookError || data.message || "建立付款資料失敗";
+
+                $("#buyError").text(errorMessage).prop("hidden", false);
+
+                // 已售出就維持停用；其他錯誤允許稍後重試。
+                if (errorMessage.includes("已售出")) {
+                    $("#status").text("已售出").addClass("unavailable");
+                    button.prop("disabled", true).text("已售出");
+                } else {
+                    button.prop("disabled", false).text("購買");
+                }
+            }
+        });
+    });
+
+    // 藍新 MPG 需要瀏覽器用 form POST 導向 gateway。
+    function submitNewebPayForm(paymentForm) {
+        if (!paymentForm.gatewayUrl || !paymentForm.merchantId
+                || !paymentForm.version || !paymentForm.tradeInfo || !paymentForm.tradeSha) {
+            $("#buyError").text("付款表單資料不完整").prop("hidden", false);
+            $("#buyButton").prop("disabled", false).text("購買");
+            return;
+        }
+
+        const form = $("<form>", {
+            method: "POST",
+            action: paymentForm.gatewayUrl
+        }).css("display", "none");
+
+        const fields = {
+            MerchantID: paymentForm.merchantId,
+            Version: paymentForm.version,
+            TradeInfo: paymentForm.tradeInfo,
+            TradeSha: paymentForm.tradeSha
+        };
+
+        $.each(fields, function (name, value) {
+            form.append($("<input>", { type: "hidden", name: name, value: value }));
+        });
+
+        form.appendTo(document.body);
+        form.trigger("submit");
+    }
+
     function showMessage(text) {
         $("#content").prop("hidden", true);
         $("#message").text(text).prop("hidden", false);
     }
 
-    function renderBook(id, book) {
+    function renderBook(book) {
+        const info = BOOK_INFO[book.id] || DEFAULT_INFO;
         const priceText = "NT$ " + Number(book.price).toLocaleString();
+        const purchaseStatus = book.purchaseStatus || "AVAILABLE";
+        const statusText = purchaseStatus === "PAID" ? "已售出"
+                : (purchaseStatus === "PENDING_PAYMENT" ? "購買中" : "可購買");
 
         document.title = book.name + "｜書籍介紹";
-        $("#cover").attr({ src: `/images/books/book-${id}.svg`, alt: `${book.name} 封面` });
+        $("#cover")
+            .attr({ src: `/images/books/book-${book.id}.svg`, alt: `${book.name} 封面` })
+            .on("error", function () { $(this).css("visibility", "hidden"); });
         $("#name").text(book.name);
-        $("#tagline").text(book.tagline);
+        $("#tagline").text(info.tagline).prop("hidden", !info.tagline);
         $("#price").text(priceText);
-        $("#summary").text(book.summary);
-        $("#audience").text(book.audience);
-        $("#specId").text(id);
+        $("#status").text(statusText).toggleClass("unavailable", purchaseStatus !== "AVAILABLE");
+        currentBookId = book.id;
+        $("#buyButton")
+            .prop("disabled", purchaseStatus !== "AVAILABLE")
+            .text(purchaseStatus === "AVAILABLE" ? "購買" : statusText);
+        $("#summary").text(info.summary);
+        $("#audience").text(info.audience);
+        $("#specId").text(book.id);
         $("#specName").text(book.name);
         $("#specPrice").text(priceText);
 
         const list = $("#features").empty();
-        book.features.forEach(function (feature) {
+        info.features.forEach(function (feature) {
             $("<li>").text(feature).appendTo(list);
         });
 
@@ -281,16 +438,43 @@
     }
 
     $(function () {
+        const accessToken = getAccessToken();
+        const refreshToken = getRefreshToken();
+
+        // 沒有登入憑證就導回登入頁（與書籍列表頁相同）。
+        if (!accessToken || !refreshToken) {
+            window.location.href = "/page/login";
+            return;
+        }
+
         // 從網址取得書籍 id，例如 /page/book-detail?id=3
         const id = new URLSearchParams(window.location.search).get("id");
-        const book = BOOK_INFO[id];
-
-        if (!book) {
+        if (!id || !/^\d+$/.test(id)) {
             showMessage("找不到這本書的介紹");
             return;
         }
 
-        renderBook(id, book);
+        $.ajax({
+            url: `/books/${id}`,
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "X-Refresh-Token": refreshToken
+            },
+            success: function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+                renderBook(data);
+            },
+            error: function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+                const data = xhr.responseJSON || {};
+                showMessage(xhr.status === 404 ? "找不到這本書的介紹" : (data.message || "讀取書籍失敗"));
+            }
+        });
     });
 </script>
 </body>
