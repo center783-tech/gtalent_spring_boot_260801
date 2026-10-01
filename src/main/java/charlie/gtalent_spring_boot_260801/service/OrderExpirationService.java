@@ -15,7 +15,6 @@ import charlie.gtalent_spring_boot_260801.constant.OrderStatus;
 import charlie.gtalent_spring_boot_260801.constant.PaymentStatus;
 import charlie.gtalent_spring_boot_260801.entity.BookOrder;
 import charlie.gtalent_spring_boot_260801.repository.BookOrderRepository;
-import charlie.gtalent_spring_boot_260801.repository.BookRepository;
 import charlie.gtalent_spring_boot_260801.repository.PaymentRepository;
 
 // 定時取消「下單後超過期限仍未付款」的訂單，並把下單時保留的庫存還回去。
@@ -27,19 +26,19 @@ public class OrderExpirationService {
 
     private final BookOrderRepository bookOrderRepository;
     private final PaymentRepository paymentRepository;
-    private final BookRepository bookRepository;
+    private final BookOrderService bookOrderService;
     private final TransactionTemplate transactionTemplate;
     private final int paymentTimeoutMinutes;
 
     public OrderExpirationService(
             BookOrderRepository bookOrderRepository,
             PaymentRepository paymentRepository,
-            BookRepository bookRepository,
+            BookOrderService bookOrderService,
             PlatformTransactionManager transactionManager,
-            @Value("${book-order.payment-timeout-minutes:10}") int paymentTimeoutMinutes) {
+            @Value("${book-order.payment-timeout-minutes:30}") int paymentTimeoutMinutes) {
         this.bookOrderRepository = bookOrderRepository;
         this.paymentRepository = paymentRepository;
-        this.bookRepository = bookRepository;
+        this.bookOrderService = bookOrderService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.paymentTimeoutMinutes = paymentTimeoutMinutes;
     }
@@ -79,10 +78,9 @@ public class OrderExpirationService {
                 }
             });
 
-            // 把下單時保留的庫存還回去。
-            bookRepository.increaseStock(order.getBookId(), order.getQuantity());
-            log.info("訂單逾時未付款，已取消並還回庫存，orderNo={}, bookId={}, quantity={}",
-                    order.getOrderNo(), order.getBookId(), order.getQuantity());
+            // 把下單時保留的庫存還回去（訂單裡每一本書都要還）。
+            bookOrderService.restoreStock(order.getId());
+            log.info("訂單逾時未付款，已取消並還回庫存，orderNo={}", order.getOrderNo());
         });
     }
 }

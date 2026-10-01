@@ -27,13 +27,14 @@ public class BookOrder {
     @Column(name = "order_no", nullable = false, length = 64, unique = true)
     private String orderNo;
 
-    @Column(name = "book_id", nullable = false)
+    // 舊資料才有值；新的訂單可以有多本書，書籍資訊改放在 book_order_items。
+    @Column(name = "book_id")
     private Long bookId;
 
     @Column(name = "buyer_member_id", nullable = false)
     private Long buyerMemberId;
 
-    // 購買數量
+    // 這張訂單所有書的總本數
     @Column(nullable = false)
     private Integer quantity = 1;
 
@@ -59,15 +60,11 @@ public class BookOrder {
     protected BookOrder() {
     }
 
-    public BookOrder(String orderNo, Long bookId, Long buyerMemberId, Integer amount) {
-        this(orderNo, bookId, buyerMemberId, 1, amount);
-    }
-
-    public BookOrder(String orderNo, Long bookId, Long buyerMemberId, Integer quantity, Integer amount) {
-        this.quantity = quantity;
+    // amount 是整張訂單的總金額；每本書的明細在 book_order_items。
+    public BookOrder(String orderNo, Long buyerMemberId, Integer quantity, Integer amount) {
         this.orderNo = orderNo;
-        this.bookId = bookId;
         this.buyerMemberId = buyerMemberId;
+        this.quantity = quantity;
         this.amount = amount;
     }
 

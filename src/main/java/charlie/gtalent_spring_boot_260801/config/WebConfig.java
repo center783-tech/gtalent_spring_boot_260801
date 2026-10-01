@@ -24,7 +24,11 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns(
                         "/members/**",
                         "/books/**",
-                        "/payments/**"
+                        "/payments/**",
+                        "/payments/books/**",
+                        "/cart/**", 
+                        "/payments/cart/**"
+                        
                 )
                 .excludePathPatterns(
                         "/members/register",
