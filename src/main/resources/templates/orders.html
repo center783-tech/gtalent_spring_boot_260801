@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的訂單</title>
+    <link rel="stylesheet" href="/css/shop.css">
+</head>
+<body>
+<header>
+    <div class="bar">
+        <h1>我的訂單</h1>
+        <nav>
+            <a href="/page/books">書籍列表</a>
+            <a href="/page/cart">購物車</a>
+            <a href="/page/profile">會員資料</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <form id="filterForm" class="card filters">
+        <div>
+            <label for="status">訂單狀態</label>
+            <select id="status">
+                <option value="">全部</option>
+                <option value="PENDING_PAYMENT">待付款</option>
+                <option value="PAID">已付款</option>
+                <option value="CANCELLED">已取消</option>
+                <option value="FAILED">付款失敗</option>
+            </select>
+        </div>
+        <div>
+            <label for="orderNo">訂單編號</label>
+            <input id="orderNo" type="text" maxlength="64" placeholder="可輸入部分編號">
+        </div>
+        <div>
+            <label for="from">下單日期（起）</label>
+            <input id="from" type="date">
+        </div>
+        <div>
+            <label for="to">下單日期（迄）</label>
+            <input id="to" type="date">
+        </div>
+        <button id="searchButton" class="button" type="submit">查詢</button>
+        <button id="clearButton" class="button secondary" type="button">清除條件</button>
+    </form>
+
+    <p id="message" class="message" role="alert" hidden></p>
+
+    <div class="card">
+        <div id="loading" class="empty">讀取中</div>
+        <div id="empty" class="empty" hidden>沒有符合條件的訂單</div>
+
+        <div id="tableWrap" class="table-wrap" hidden>
+            <table>
+                <thead>
+                <tr>
+                    <th>訂單編號</th>
+                    <th>下單時間</th>
+                    <th>狀態</th>
+                    <th class="num">本數</th>
+                    <th class="num">金額</th>
+                    <th>明細</th>
+                </tr>
+                </thead>
+                <tbody id="ordersBody"></tbody>
+            </table>
+        </div>
+
+        <div id="pager" class="pager" hidden>
+            <button id="prevPage" class="button secondary" type="button">上一頁</button>
+            <span id="pageInfo">第 1 / 1 頁</span>
+            <button id="nextPage" class="button secondary" type="button">下一頁</button>
+        </div>
+    </div>
+</main>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+    const STATUS_LABELS = {
+        PENDING_PAYMENT: "待付款",
+        PAID: "已付款",
+        CANCELLED: "已取消",
+        FAILED: "付款失敗"
+    };
+
+    let currentPage = 1;
+    let totalPages = 1;
+    const pageSize = 10;
+
+    function getAccessToken() { return localStorage.getItem("accessToken"); }
+    function getRefreshToken() { return localStorage.getItem("refreshToken"); }
+
+    // 後端若在 header 帶回新的 token，就存回 localStorage（與其他頁面相同）。
+    function saveNewTokens(xhr) {
+        const newAccessToken = xhr.getResponseHeader("X-New-Access-Token");
+        const newRefreshToken = xhr.getResponseHeader("X-New-Refresh-Token");
+        if (newAccessToken) { localStorage.setItem("accessToken", newAccessToken); }
+        if (newRefreshToken) { localStorage.setItem("refreshToken", newRefreshToken); }
+    }
+
+    // 統一處理需要登入的 AJAX 請求，自動補上 access token 和 refresh token。
+    function apiAjax(options) {
+        const accessToken = getAccessToken();
+        const refreshToken = getRefreshToken();
+
+        if (!accessToken || !refreshToken) {
+            window.location.href = "/page/login";
+            return null;
+        }
+
+        const ajaxOptions = $.extend({}, options);
+        ajaxOptions.headers = $.extend({}, options.headers || {}, {
+            Authorization: `Bearer ${accessToken}`,
+            "X-Refresh-Token": refreshToken
+        });
+
+        return $.ajax(ajaxOptions);
+    }
+
+    function getErrorMessage(xhr, fallback) {
+        const data = xhr.responseJSON || {};
+        if (data.errors && typeof data.errors === "object") {
+            const first = Object.values(data.errors)[0];
+            if (first) {
+                return first;
+            }
+        }
+        return data.message || fallback;
+    }
+
+    function formatMoney(value) {
+        return "NT$ " + Number(value).toLocaleString();
+    }
+
+    // 後端時間格式是 2026-10-01T19:49:55.123，顯示成 2026-10-01 19:49
+    function formatTime(value) {
+        return value ? String(value).replace("T", " ").slice(0, 16) : "-";
+    }
+
+    function buildStatusBadge(status) {
+        return $("<span>", {
+            class: "badge " + status,
+            text: STATUS_LABELS[status] || status
+        });
+    }
+
+    // 展開後顯示的訂單明細：每一本書的書名、單價、數量、小計，和付款時間等資訊。
+    function buildDetail(order) {
+        const box = $("<div>");
+
+        const meta = $("<p>", { class: "detail-meta" });
+        meta.append(document.createTextNode("下單時間：" + formatTime(order.createdAt)));
+        if (order.paidAt) {
+            meta.append($("<br>")).append(document.createTextNode("付款時間：" + formatTime(order.paidAt)));
+        }
+        if (order.cancelledAt) {
+            meta.append($("<br>")).append(document.createTextNode("取消時間：" + formatTime(order.cancelledAt)));
+        }
+        box.append(meta);
+
+        const table = $("<table>", { class: "detail-table" });
+        table.append($("<thead>").append($("<tr>")
+            .append($("<th>", { text: "書名" }))
+            .append($("<th>", { class: "num", text: "單價" }))
+            .append($("<th>", { class: "num", text: "數量" }))
+            .append($("<th>", { class: "num", text: "小計" }))));
+
+        const body = $("<tbody>");
+        (order.items || []).forEach(function (item) {
+            body.append($("<tr>")
+                .append($("<td>").append($("<a>", {
+                    href: `/page/book-detail?id=${encodeURIComponent(item.bookId)}`,
+                    text: item.bookName
+                })))
+                .append($("<td>", { class: "num", text: formatMoney(item.unitPrice) }))
+                .append($("<td>", { class: "num", text: item.quantity }))
+                .append($("<td>", { class: "num", text: formatMoney(item.subtotal) })));
+        });
+        table.append(body);
+        box.append(table);
+        return box;
+    }
+
+    function renderOrders(data) {
+        $("#loading").prop("hidden", true);
+        $("#message").prop("hidden", true);
+
+        const orders = data.content || [];
+        if (orders.length === 0) {
+            $("#tableWrap").prop("hidden", true);
+            $("#pager").prop("hidden", true);
+            $("#empty").prop("hidden", false);
+            return;
+        }
+
+        const body = $("#ordersBody").empty();
+        orders.forEach(function (order) {
+            const toggle = $("<button>", {
+                type: "button",
+                class: "toggle-button",
+                text: "查看明細",
+                "aria-expanded": "false"
+            });
+
+            const row = $("<tr>")
+                .append($("<td>", { class: "order-no", text: order.orderNo }))
+                .append($("<td>", { text: formatTime(order.createdAt) }))
+                .append($("<td>").append(buildStatusBadge(order.orderStatus)))
+                .append($("<td>", { class: "num", text: order.quantity }))
+                .append($("<td>", { class: "num", text: formatMoney(order.amount) }))
+                .append($("<td>").append(toggle));
+
+            const detailRow = $("<tr>", { class: "detail-row" }).prop("hidden", true)
+                .append($("<td>", { colspan: 6 }).append(buildDetail(order)));
+
+            toggle.on("click", function () {
+                const willShow = detailRow.prop("hidden");
+                detailRow.prop("hidden", !willShow);
+                toggle.text(willShow ? "收合明細" : "查看明細").attr("aria-expanded", String(willShow));
+            });
+
+            body.append(row).append(detailRow);
+        });
+
+        currentPage = data.page || currentPage;
+        totalPages = data.totalPages || 1;
+        $("#pageInfo").text(`第 ${currentPage} / ${totalPages} 頁，共 ${data.totalElements || 0} 筆`);
+        $("#prevPage").prop("disabled", currentPage <= 1);
+        $("#nextPage").prop("disabled", currentPage >= totalPages);
+
+        $("#empty").prop("hidden", true);
+        $("#tableWrap").prop("hidden", false);
+        $("#pager").prop("hidden", false);
+    }
+
+    function showError(text) {
+        $("#loading").prop("hidden", true);
+        $("#message").text(text).prop("hidden", false);
+    }
+
+    // 依目前的篩選條件和頁碼查詢；沒填的條件不會送給後端。
+    function loadOrders() {
+        const params = new URLSearchParams({ page: currentPage, size: pageSize });
+        const filters = {
+            status: $("#status").val(),
+            orderNo: $("#orderNo").val().trim(),
+            from: $("#from").val(),
+            to: $("#to").val()
+        };
+        Object.keys(filters).forEach(function (key) {
+            if (filters[key]) {
+                params.set(key, filters[key]);
+            }
+        });
+
+        if (filters.from && filters.to && filters.from > filters.to) {
+            showError("起始日期不能晚於結束日期");
+            return;
+        }
+
+        const request = apiAjax({ url: "/orders?" + params.toString(), method: "GET" });
+        if (!request) {
+            return;
+        }
+
+        request
+            .done(function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+                renderOrders(data);
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+                showError(getErrorMessage(xhr, "讀取訂單失敗"));
+            });
+    }
+
+    $("#filterForm").on("submit", function (event) {
+        event.preventDefault();
+        currentPage = 1;
+        loadOrders();
+    });
+
+    $("#clearButton").on("click", function () {
+        $("#filterForm")[0].reset();
+        currentPage = 1;
+        loadOrders();
+    });
+
+    $("#prevPage").on("click", function () {
+        if (currentPage > 1) {
+            currentPage -= 1;
+            loadOrders();
+        }
+    });
+
+    $("#nextPage").on("click", function () {
+        if (currentPage < totalPages) {
+            currentPage += 1;
+            loadOrders();
+        }
+    });
+
+    $(function () {
+        loadOrders();
+    });
+</script>
+</body>
+</html>
