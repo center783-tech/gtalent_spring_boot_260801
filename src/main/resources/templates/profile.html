@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>會員資料</title>
+    <link rel="stylesheet" href="/css/shop.css">
+</head>
+<body>
+<header>
+    <div class="bar">
+        <h1>會員資料</h1>
+        <nav>
+            <a href="/page/books">書籍列表</a>
+            <a href="/page/cart">購物車</a>
+            <a href="/page/orders">我的訂單</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <h2>基本資料</h2>
+    <p class="hint">帳號是登入用的，不能修改。</p>
+
+    <p id="message" class="message" role="status" hidden></p>
+
+    <form id="profileForm">
+        <label for="account">帳號</label>
+        <input id="account" type="text" readonly>
+
+        <label for="name">姓名</label>
+        <input id="name" type="text" maxlength="30" required>
+
+        <label for="gender">性別</label>
+        <select id="gender">
+            <option value="1">男</option>
+            <option value="2">女</option>
+            <option value="0">其他</option>
+        </select>
+
+        <label for="email">Email</label>
+        <input id="email" type="email" maxlength="128">
+        <p class="field-note">忘記密碼時，重設連結會寄到這個 Email。</p>
+
+        <button id="saveButton" type="button" disabled>儲存</button>
+    </form>
+</main>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+    function getAccessToken() { return localStorage.getItem("accessToken"); }
+    function getRefreshToken() { return localStorage.getItem("refreshToken"); }
+
+    // 後端若在 header 帶回新的 token，就存回 localStorage（與其他頁面相同）。
+    function saveNewTokens(xhr) {
+        const newAccessToken = xhr.getResponseHeader("X-New-Access-Token");
+        const newRefreshToken = xhr.getResponseHeader("X-New-Refresh-Token");
+        if (newAccessToken) { localStorage.setItem("accessToken", newAccessToken); }
+        if (newRefreshToken) { localStorage.setItem("refreshToken", newRefreshToken); }
+    }
+
+    // 統一處理需要登入的 AJAX 請求，自動補上 access token 和 refresh token。
+    function apiAjax(options) {
+        const accessToken = getAccessToken();
+        const refreshToken = getRefreshToken();
+
+        if (!accessToken || !refreshToken) {
+            window.location.href = "/page/login";
+            return null;
+        }
+
+        const ajaxOptions = $.extend({}, options);
+        ajaxOptions.headers = $.extend({}, options.headers || {}, {
+            Authorization: `Bearer ${accessToken}`,
+            "X-Refresh-Token": refreshToken
+        });
+
+        return $.ajax(ajaxOptions);
+    }
+
+    // 從後端錯誤回應取出要顯示給使用者的訊息。
+    function getErrorMessage(xhr, fallback) {
+        const data = xhr.responseJSON || {};
+        if (data.errors && typeof data.errors === "object") {
+            const first = Object.values(data.errors)[0];
+            if (first) {
+                return first;
+            }
+        }
+        return data.message || fallback;
+    }
+
+    // access token 是 JWT，payload 的 sub 就是會員 id（後端也是用它判斷你只能改自己的資料）。
+    function getMemberId() {
+        try {
+            const payload = getAccessToken().split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+            const memberId = JSON.parse(atob(payload)).sub;
+            return /^\d+$/.test(String(memberId)) ? String(memberId) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function showMessage(text, isError) {
+        $("#message").text(text).toggleClass("error", !!isError).prop("hidden", false);
+    }
+
+    let memberId = null;
+
+    function loadProfile() {
+        const request = apiAjax({ url: `/members/${memberId}`, method: "GET" });
+        if (!request) {
+            return;
+        }
+
+        request
+            .done(function (member, textStatus, xhr) {
+                saveNewTokens(xhr);
+                $("#account").val(member.account);
+                $("#name").val(member.name);
+                $("#gender").val(String(member.gender));
+                $("#email").val(member.email || "");
+                $("#saveButton").prop("disabled", false);
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+                showMessage(getErrorMessage(xhr, "讀取會員資料失敗"), true);
+            });
+    }
+
+    $("#saveButton").on("click", function () {
+        const button = $(this);
+        $("#message").prop("hidden", true);
+
+        const name = $("#name").val().trim();
+        if (!name) {
+            showMessage("姓名必填", true);
+            return;
+        }
+
+        // 後端的修改是「有送才改」：email 沒填就不送，代表維持原本的 Email 不變。
+        const payload = { name: name, gender: Number($("#gender").val()) };
+        const email = $("#email").val().trim();
+        if (email) {
+            payload.email = email;
+        }
+
+        button.prop("disabled", true).text("儲存中");
+
+        const request = apiAjax({
+            url: `/members/${memberId}/profile`,
+            method: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify(payload)
+        });
+        if (!request) {
+            return;
+        }
+
+        request
+            .done(function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+                showMessage((data && data.message) || "會員基本資料修改成功", false);
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+                showMessage(getErrorMessage(xhr, "儲存失敗"), true);
+            })
+            .always(function () {
+                button.prop("disabled", false).text("儲存");
+            });
+    });
+
+    $(function () {
+        memberId = getMemberId();
+        if (!memberId) {
+            window.location.href = "/page/login";
+            return;
+        }
+        loadProfile();
+    });
+</script>
+</body>
+</html>

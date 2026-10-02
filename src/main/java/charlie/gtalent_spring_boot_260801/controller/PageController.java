@@ -54,6 +54,14 @@ public class PageController {
     public String cart() {
        return "cart";
    }
+
+   @GetMapping("/page/profile")
+   public String profile() { return "profile"; 
+   }
+
+   @GetMapping("/page/orders")
+   public String orders() { return "orders"; 
+   }
     
 
 }
