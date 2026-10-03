@@ -1,9 +1,9 @@
-takeown /f "C:\aws\JSB-2609-key8"
+takeown /f "C:\aws\JSB-2609-key9"
 
-icacls "C:\aws\JSB-2609-key8" /reset
-icacls "C:\aws\JSB-2609-key8" /grant:r "${env:USERNAME}:(R)"
-icacls "C:\aws\JSB-2609-key8" /inheritance:r
-icacls "C:\aws\JSB-2609-key8"
+icacls "C:\aws\JSB-2609-key10.pem" /reset
+icacls "C:\aws\JSB-2609-key10.pem" /grant:r "${env:USERNAME}:(R)"
+icacls "C:\aws\JSB-2609-key10.pem" /inheritance:r
+icacls "C:\aws\JSB-2609-key10.pem"
 
 ssh -i "C:/aws/JSB-2609-key8" ubuntu@43.213.80.81
 ssh -i "C:/aws/gtalent_actions_ed25519" ubuntu@43.213.80.81
@@ -16,6 +16,25 @@ ssh `
   -i "C:\aws\JSB-2609-key8" `
   ubuntu@43.213.80.81 exit
 
-  Get-Content "C:\aws\JSB-2609-key8_ec2_known_hosts"   
+  Get-Content "C:\aws\JSB-2609-10_ec2_known_hosts"   
   
-   
+  
+  ssh -i "C:/aws/JSB-2609-key10.pem" ubuntu@43.213.68.133
+
+
+ 
+ssh `
+  -o StrictHostKeyChecking=accept-new `
+  -o UserKnownHostsFile="C:\aws\ec2_known_hosts" `
+  -o KexAlgorithms=curve25519-sha256 `
+  -i "C:\aws\gtalent_actions_ed25519" `
+  ubuntu@43.213.68.133 exit
+
+
+
+takeown /f "C:\aws\ec2_known_hosts"
+
+icacls "C:\aws\ec2_known_hosts" /reset
+icacls "C:\aws\ec2_known_hosts" /grant:r "${env:USERNAME}:(R)"
+icacls "C:\aws\ec2_known_hosts" /inheritance:r
+icacls "C:\aws\ec2_known_hosts"
