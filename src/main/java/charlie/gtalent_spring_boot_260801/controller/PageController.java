@@ -62,6 +62,11 @@ public class PageController {
    @GetMapping("/page/orders")
    public String orders() { return "orders"; 
    }
+
+   @GetMapping("/")
+   public String index() {
+   return "index";
+   }
     
 
 }

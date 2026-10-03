@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookShop 書店</title>
+    <link rel="stylesheet" href="/css/shop.css">
+    <link rel="stylesheet" href="/css/home.css">
+    <style media="not all">
+        /* 首頁專用樣式；顏色沿用 shop.css 的 --brand，換主題色時會一起跟著變。 */
+        /* main 撐滿剩餘高度，頁尾會固定在畫面底部 */
+        body.home-page > main {
+            flex: 1;
+        }
+
+        .home-hero {
+            padding: 56px 16px 64px;
+            background:
+                var(--leaf-pattern, none),
+                linear-gradient(180deg, var(--brand-dark, #d73211), var(--brand, #ee4d2d));
+            color: #ffffff;
+            text-align: center;
+        }
+
+        .home-hero h1 {
+            margin: 0 0 12px;
+            font-family: var(--serif, inherit);
+            font-size: clamp(28px, 5vw, 44px);
+            line-height: 1.25;
+        }
+
+        .home-hero p {
+            max-width: 560px;
+            margin: 0 auto 28px;
+            font-size: clamp(15px, 2.2vw, 18px);
+            line-height: 1.7;
+            opacity: 0.95;
+        }
+
+        .home-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .home-actions .btn {
+            min-width: 150px;
+            min-height: 46px;
+            font-size: 16px;
+        }
+
+        .home-actions .btn-light {
+            border-color: #ffffff;
+            background: #ffffff;
+            color: var(--brand, #ee4d2d);
+            font-weight: 700;
+        }
+
+        .home-actions .btn-light:hover {
+            background: #f5f5f5;
+        }
+
+        .home-actions .btn-ghost {
+            border-color: rgba(255, 255, 255, 0.8);
+            background: transparent;
+            color: #ffffff;
+        }
+
+        .home-actions .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .home-section {
+            width: min(1100px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 40px 0 8px;
+        }
+
+        .home-section h2 {
+            margin: 0 0 6px;
+            font-family: var(--serif, inherit);
+            font-size: 22px;
+        }
+
+        .home-section .lead {
+            margin: 0 0 22px;
+            color: var(--muted, #757575);
+        }
+
+        .cover-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 18px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .cover-card a {
+            display: block;
+            height: 100%;
+            overflow: hidden;
+            border: 1px solid var(--line, #ececec);
+            border-radius: 4px;
+            background: var(--card, #ffffff);
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+        }
+
+        .cover-card a:hover {
+            border-color: var(--brand, #ee4d2d);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            transform: translateY(-3px);
+        }
+
+        .cover-card img {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 3 / 4;
+            background: #f0f0f0;
+            object-fit: cover;
+        }
+
+        .cover-card .caption {
+            padding: 12px 12px 14px;
+        }
+
+        .cover-card h3 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            overflow-wrap: anywhere;
+        }
+
+        .cover-card p {
+            margin: 0;
+            color: var(--muted, #757575);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .home-more {
+            margin-top: 26px;
+            text-align: center;
+        }
+
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 20px;
+            border-radius: 4px;
+            background: var(--card, #ffffff);
+            box-shadow: var(--shadow, 0 1px 1px rgba(0, 0, 0, 0.08));
+        }
+
+        .feature-list h3 {
+            margin: 0 0 6px;
+            color: var(--brand, #ee4d2d);
+            font-size: 16px;
+        }
+
+        .feature-list p {
+            margin: 0;
+            color: var(--muted, #757575);
+            line-height: 1.7;
+        }
+
+        .home-footer {
+            margin-top: 48px;
+            padding: 24px 16px;
+            border-top: 1px solid var(--line, #ececec);
+            background: var(--card, #ffffff);
+            color: var(--muted, #757575);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        @media (max-width: 640px) {
+            .home-hero {
+                padding: 36px 16px 44px;
+            }
+
+            .home-actions .btn {
+                flex: 1 1 140px;
+            }
+
+            .cover-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="auth-page home-page">
+<header class="auth-top">
+    <div class="inner">
+        <a class="brand" href="/" aria-label="BookShop 首頁">
+            <svg viewBox="0 0 32 32" aria-hidden="true" width="34" height="34">
+                <rect x="4" y="3" width="24" height="26" rx="3" style="fill: var(--brand, #ee4d2d)"/>
+                <path d="M10 3v26" stroke="#fff" stroke-width="2"/>
+                <path d="M14 10h9M14 15h9" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>BookShop</span>
+        </a>
+        <a class="help" id="topLink" href="/page/login">登入</a>
+    </div>
+</header>
+
+<main>
+    <section class="home-hero">
+        <h1>找到你的下一本好書</h1>
+        <p>精選書籍一次看，登入後可以查看庫存、加入購物車，並用藍新金流安全付款。</p>
+        <div class="home-actions">
+            <a id="primaryAction" class="btn btn-light" href="/page/login">登入</a>
+            <a id="secondaryAction" class="btn btn-ghost" href="/page/register">註冊帳號</a>
+        </div>
+    </section>
+
+    <section class="home-section" aria-labelledby="featuredTitle">
+        <h2 id="featuredTitle">精選書籍</h2>
+        <p class="lead">點選封面可以查看詳細介紹（需要先登入）。</p>
+        <ul id="coverGrid" class="cover-grid"></ul>
+        <div class="home-more">
+            <a id="moreLink" class="btn btn-outline" href="/page/login">登入查看全部書籍</a>
+        </div>
+    </section>
+
+    <section class="home-section" aria-labelledby="featureTitle">
+        <h2 id="featureTitle">為什麼在這裡買書</h2>
+        <ul class="feature-list">
+            <li>
+                <h3>即時庫存</h3>
+                <p>每本書都顯示目前剩餘數量，售完的書會清楚標示，不會買了才發現沒貨。</p>
+            </li>
+            <li>
+                <h3>購物車一次結帳</h3>
+                <p>想買的書先放進購物車，確認數量和金額後，一次完成付款。</p>
+            </li>
+            <li>
+                <h3>訂單紀錄隨時查</h3>
+                <p>在「我的訂單」依狀態、日期或訂單編號查詢，每一本書的明細都看得到。</p>
+            </li>
+        </ul>
+    </section>
+</main>
+
+<footer class="home-footer">
+    &copy; BookShop 書店
+</footer>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="/js/shop-common.js"></script>
+<script src="/js/home.js"></script>
+<script type="text/plain">
+    // 首頁展示的書籍。封面圖片放在 static/images/books/book-{id}.svg，
+    // 這裡的名稱要和封面圖上的書名一致。首頁不需要登入，所以這份清單寫在前端；
+    // 新增書籍或封面時，請同步修改這裡。
+    const FEATURED_BOOKS = [
+        { id: 1, name: "Book A", tagline: "入門首選，用最短的時間掌握基本觀念。" },
+        { id: 2, name: "Book B", tagline: "承接基礎，進一步整理常見問題與實作方法。" },
+        { id: 3, name: "Book-26090900015", tagline: "精選主題的專題讀本，內容精簡好上手。" },
+        { id: 4, name: "Book-26090900014", tagline: "完整系統的進階教材，兼顧原理與實作。" },
+        { id: 5, name: "Book-26090900016", tagline: "完整收錄的珍藏版，適合長期參考。" }
+    ];
+
+    // 已登入（瀏覽器裡有 token）就把登入按鈕換成「前往書店」。
+    // 這裡只是決定按鈕文字，token 是否有效仍由後端判斷。
+    const loggedIn = !!(localStorage.getItem("accessToken") && localStorage.getItem("refreshToken"));
+
+    function renderCovers() {
+        const grid = $("#coverGrid");
+
+        FEATURED_BOOKS.forEach(function (book) {
+            const link = $("<a>", {
+                href: "/page/book-detail?id=" + encodeURIComponent(book.id),
+                "aria-label": book.name
+            });
+
+            link.append($("<img>", {
+                src: "/images/books/book-" + encodeURIComponent(book.id) + ".svg",
+                alt: book.name + " 封面",
+                width: 300,
+                height: 400,
+                loading: "lazy"
+            }));
+
+            link.append($("<div>", { class: "caption" })
+                .append($("<h3>", { text: book.name }))
+                .append($("<p>", { text: book.tagline })));
+
+            $("<li>", { class: "cover-card" }).append(link).appendTo(grid);
+        });
+    }
+
+    $(function () {
+        renderCovers();
+
+        if (loggedIn) {
+            $("#topLink").text("前往書店").attr("href", "/page/books");
+            $("#primaryAction").text("前往書店").attr("href", "/page/books");
+            $("#secondaryAction").hide();
+            $("#moreLink").text("查看全部書籍").attr("href", "/page/books");
+        }
+    });
+</script>
+</body>
+</html>
