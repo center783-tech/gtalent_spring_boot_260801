@@ -13,9 +13,10 @@ import charlie.gtalent_spring_boot_260801.service.LineWebhookService;
 
 @RestController
 public class LineWebhookController {
+
     private final LineWebhookService lineWebhookService;
 
-    public LineWebhookController(LineWebhookService lineWebhookService){
+    public LineWebhookController(LineWebhookService lineWebhookService) {
         this.lineWebhookService = lineWebhookService;
     }
 
