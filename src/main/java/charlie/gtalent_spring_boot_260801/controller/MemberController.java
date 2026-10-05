@@ -66,6 +66,15 @@ public class MemberController {
         return new ApiResponse("會員密碼修改成功");
     }
 
+    // 寄「修改密碼」的 Email 驗證碼到會員信箱；之後修改密碼時要帶上信裡的驗證碼。
+    @PostMapping("/{id}/password-code")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse sendPasswordChangeCode(@PathVariable Long id) {
+        String maskedEmail = memberService.sendPasswordChangeCode(id);
+        return new ApiResponse("驗證碼已寄送至 " + maskedEmail
+                + "，請在 " + MemberService.PASSWORD_CHANGE_CODE_MINUTES + " 分鐘內輸入");
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse delete(@PathVariable Long id) {

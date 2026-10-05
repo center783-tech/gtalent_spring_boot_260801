@@ -43,6 +43,7 @@ public final class ResponseMessages {
     public static final String ORDER_QUANTITY_INVALID   = "10028"; // 購買數量小於 1。
     public static final String CART_BOOK_ID_REQUIRED    = "10029"; // 購物車：書籍 id 未填。
     public static final String CART_QUANTITY_REQUIRED   = "10030"; // 購物車：數量未填。
+    public static final String PASSWORD_CHANGE_CODE_REQUIRED = "10031";
 
 
     // 20000 區間：資料庫寫入相關錯誤。
@@ -66,6 +67,10 @@ public final class ResponseMessages {
     public static final String BOOK_OUT_OF_STOCK        = "40009"; // 書籍庫存不足。
     public static final String CART_ITEM_NOT_FOUND      = "40010"; // 購物車沒有這個商品。
     public static final String CART_EMPTY               = "40011"; // 購物車是空的。
+    public static final String PASSWORD_CHANGE_EMAIL_REQUIRED = "40012";
+    public static final String PASSWORD_CHANGE_CODE_INVALID = "40013";
+    public static final String PASSWORD_CHANGE_CODE_TOO_MANY = "40014";
+    public static final String PASSWORD_CHANGE_CODE_COOLDOWN = "40015";
 
     public static final String MAIL_SEND_FAILED         = "50000"; // 電子郵件寄送失敗。
     
@@ -125,6 +130,11 @@ public final class ResponseMessages {
         messages.put(CART_QUANTITY_REQUIRED, "數量必填");
         messages.put(CART_ITEM_NOT_FOUND,   "購物車沒有這個商品");
         messages.put(CART_EMPTY,            "購物車是空的");
+        messages.put(PASSWORD_CHANGE_CODE_REQUIRED, "請輸入信箱收到的 6 位數驗證碼");
+        messages.put(PASSWORD_CHANGE_EMAIL_REQUIRED, "請先填寫並儲存 Email，才能寄送驗證碼");
+        messages.put(PASSWORD_CHANGE_CODE_INVALID, "驗證碼錯誤或已過期");
+        messages.put(PASSWORD_CHANGE_CODE_TOO_MANY, "驗證碼輸入錯誤次數過多，請重新寄送驗證碼");
+        messages.put(PASSWORD_CHANGE_CODE_COOLDOWN, "驗證碼剛寄出，請稍候一分鐘再重新寄送");
         return messages;
     }
 

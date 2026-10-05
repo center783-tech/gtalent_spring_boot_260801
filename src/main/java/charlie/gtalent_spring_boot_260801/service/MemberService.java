@@ -1,5 +1,7 @@
 package charlie.gtalent_spring_boot_260801.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -22,11 +24,13 @@ import charlie.gtalent_spring_boot_260801.constant.AuthOwnerTypes;
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.entity.AuthToken;
 import charlie.gtalent_spring_boot_260801.entity.Member;
+import charlie.gtalent_spring_boot_260801.entity.PasswordChangeCode;
 import charlie.gtalent_spring_boot_260801.entity.PasswordResetToken;
 import charlie.gtalent_spring_boot_260801.exception.MemberAccountExcption;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.repository.AuthTokenRepository;
 import charlie.gtalent_spring_boot_260801.repository.MemberRepository;
+import charlie.gtalent_spring_boot_260801.repository.PasswordChangeCodeRepository;
 import charlie.gtalent_spring_boot_260801.repository.PasswordResetTokenRepository;
 import charlie.gtalent_spring_boot_260801.request.MemberForgotPasswordRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberLoginRequest;
@@ -48,8 +52,18 @@ public class MemberService {
     private AuthTokenRepository authTokenRepository;
     @Autowired   // ← 加在這裡,緊貼著欄位上方
     private PasswordResetTokenRepository passwordResetTokenRepository;
+    // 修改密碼的 Email 驗證碼（用法和上面的 passwordResetTokenRepository 一樣，用欄位注入）。
+    @Autowired
+    private PasswordChangeCodeRepository passwordChangeCodeRepository;
     private Byte TOKEN_REVOKED = 1;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    // 修改密碼的 Email 驗證碼規則
+    public static final int PASSWORD_CHANGE_CODE_MINUTES = 10;   // 驗證碼有效時間（分鐘）
+    private static final int PASSWORD_CHANGE_RESEND_SECONDS = 60; // 重新寄送的冷卻時間（秒）
+    private static final int PASSWORD_CHANGE_MAX_ATTEMPTS = 5;    // 最多可輸入錯誤幾次
+    private static final Byte CODE_ACTIVE = 0;
+    private static final Byte CODE_USED = 1;
     private String appBaseUrl;
     private long passwordResetTokenMinutes;
 
@@ -129,7 +143,10 @@ public class MemberService {
 
     }
 
-    @Transactional
+    // 修改密碼前必須先通過 Email 驗證：request 要帶信箱收到的 6 位數驗證碼。
+    // noRollbackFor：驗證碼輸入錯誤會丟例外，但「錯誤次數 +1」必須保留下來，不能跟著回復，
+    // 否則攻擊者可以無限次猜驗證碼。
+    @Transactional(noRollbackFor = MemberAccountExcption.class)
     public void updatePassword(Long id, MemberPasswordUpdateRequest request) {
         // 比對傳入的密碼跟確認密碼
         if (!request.getPassword().equals(request.getConfirmPassword())) {
@@ -145,12 +162,111 @@ public class MemberService {
                 "member",
                 ResponseMessages.MEMBER_NOT_FOUND);
         }
-        
+
         // 3. 有找到，就把 Member 拿出來
         Member targetMember = member.get();
-        targetMember.setPassword(this.passwordEncoder.encode(request.getPassword()));
 
-        
+        // 4. 驗證信箱收到的驗證碼；沒通過就不會往下修改密碼。
+        verifyPasswordChangeCode(targetMember.getId(), request.getVerificationCode());
+
+        targetMember.setPassword(this.passwordEncoder.encode(request.getPassword()));
+    }
+
+    // 寄「修改密碼」的 Email 驗證碼到會員已儲存的信箱，回傳遮罩後的信箱（例如 ab***@gmail.com）。
+    @Transactional
+    public String sendPasswordChangeCode(Long id) {
+        Member member = findOneById(id);
+
+        String email = normalizeEmail(member.getEmail());
+        if (email == null) {
+            throw new MemberAccountExcption("email", ResponseMessages.PASSWORD_CHANGE_EMAIL_REQUIRED);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // 冷卻時間內不能連續寄送，避免被拿來洗信箱。
+        passwordChangeCodeRepository.findFirstByMemberIdOrderByIdDesc(id).ifPresent(last -> {
+            if (last.getCreatedAt().plusSeconds(PASSWORD_CHANGE_RESEND_SECONDS).isAfter(now)) {
+                throw new MemberAccountExcption("verificationCode", ResponseMessages.PASSWORD_CHANGE_CODE_COOLDOWN);
+            }
+        });
+
+        // 重新寄送時，先把舊的驗證碼全部作廢，信箱裡只有最新那封有效。
+        for (PasswordChangeCode oldCode : passwordChangeCodeRepository.findByMemberIdAndUsed(id, CODE_ACTIVE)) {
+            oldCode.setUsed(CODE_USED);
+        }
+
+        // DB 只存雜湊，驗證碼本身只會出現在寄給使用者的信裡。
+        String code = generatePasswordChangeCode();
+        passwordChangeCodeRepository.save(
+                new PasswordChangeCode(id, hashPasswordChangeCode(id, code), now.plusMinutes(PASSWORD_CHANGE_CODE_MINUTES)));
+
+        String content = """
+                您好，
+
+                您正在修改會員密碼，驗證碼是：
+
+                %s
+
+                此驗證碼將在 %d 分鐘後失效。若這不是您本人的操作，請忽略此信，並考慮更換密碼。
+                請勿將驗證碼告訴任何人。
+                """.formatted(code, PASSWORD_CHANGE_CODE_MINUTES);
+
+        // 寄信失敗時 MailService 會丟 MailException，整個交易回復，驗證碼不會留在資料庫。
+        mailService.sendEmail(email, "修改會員密碼驗證碼", content);
+
+        return maskEmail(email);
+    }
+
+    // 檢查修改密碼用的驗證碼：必須存在、未過期、錯誤次數未超過上限、內容相符。
+    // 通過後立刻把驗證碼標記為已使用，同一組驗證碼不能重複使用。
+    private void verifyPasswordChangeCode(Long memberId, String code) {
+        PasswordChangeCode record = passwordChangeCodeRepository
+                .findFirstByMemberIdAndUsedOrderByIdDesc(memberId, CODE_ACTIVE)
+                .orElseThrow(() -> new MemberAccountExcption(
+                        "verificationCode", ResponseMessages.PASSWORD_CHANGE_CODE_INVALID));
+
+        if (record.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new MemberAccountExcption("verificationCode", ResponseMessages.PASSWORD_CHANGE_CODE_INVALID);
+        }
+
+        // 錯誤次數用完就作廢，必須重新寄送新的驗證碼。
+        if (record.getAttempts() >= PASSWORD_CHANGE_MAX_ATTEMPTS) {
+            record.setUsed(CODE_USED);
+            throw new MemberAccountExcption("verificationCode", ResponseMessages.PASSWORD_CHANGE_CODE_TOO_MANY);
+        }
+
+        // 用固定時間比對，避免從比對速度推測驗證碼。
+        boolean matched = MessageDigest.isEqual(
+                hashPasswordChangeCode(memberId, code).getBytes(StandardCharsets.UTF_8),
+                record.getCodeHash().getBytes(StandardCharsets.UTF_8));
+        if (!matched) {
+            record.setAttempts(record.getAttempts() + 1);
+            throw new MemberAccountExcption("verificationCode", ResponseMessages.PASSWORD_CHANGE_CODE_INVALID);
+        }
+
+        record.setUsed(CODE_USED);
+    }
+
+    // 產生 6 位數驗證碼（000000 ~ 999999，不足 6 位前面補 0）。
+    private String generatePasswordChangeCode() {
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
+    }
+
+    // 把會員 id 一起放進雜湊，不同會員即使剛好抽到同一組數字，雜湊也不同。
+    private String hashPasswordChangeCode(Long memberId, String code) {
+        return jwtService.hashToken(memberId + ":" + code);
+    }
+
+    // 信箱遮罩：ab***@gmail.com，畫面上只顯示這個，不把完整信箱再傳一次。
+    private String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        String name = email.substring(0, at);
+        String visible = name.length() <= 2 ? name.substring(0, 1) : name.substring(0, 2);
+        return visible + "***" + email.substring(at);
     }
 
     @Transactional
