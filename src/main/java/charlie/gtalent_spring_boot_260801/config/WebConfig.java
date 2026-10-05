@@ -28,7 +28,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/payments/books/**",
                         "/cart/**", 
                         "/payments/cart/**",
-                        "/orders/**"
+                        "/orders/**"                        
                                         )
                 .excludePathPatterns(
                         "/members/register",
@@ -38,7 +38,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/members/reset-password",
                         "/payments/newebpay/notify",
                         "/payments/newebpay/return",
-                        "/api/line/**"
+                        "/api/line/**",
+                        "/book-detail"
                 );
     }
 }
