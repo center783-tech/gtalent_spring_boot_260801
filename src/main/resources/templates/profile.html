@@ -5,6 +5,132 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>會員資料</title>
     <link rel="stylesheet" href="/css/shop.css">
+    <style>
+        /* 修改密碼區塊與頁首捷徑按鈕的樣式；只用 id / 專用 class，不影響其他頁面。 */
+        body header nav a.pw-shortcut {
+            padding: 6px 16px;
+            border: 1px solid var(--gold, #c4a574);
+            border-radius: 999px;
+            color: #ffffff;
+        }
+
+        body header nav a.pw-shortcut:hover {
+            background: rgba(246, 241, 230, 0.16);
+            text-decoration: none;
+        }
+
+        #passwordSection {
+            margin-top: 28px;
+            padding-top: 24px;
+            border-top: 2px solid var(--gold, #c4a574);
+            scroll-margin-top: 90px;
+        }
+
+        #passwordSection h2 {
+            margin: 0 0 8px;
+        }
+
+        #passwordSection label {
+            display: block;
+            margin: 16px 0 8px;
+            font-weight: 700;
+        }
+
+        #passwordSection input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border: 1px solid var(--line-strong, #cfd6c8);
+            border-radius: 8px;
+            background: #ffffff;
+            font-size: 16px;
+        }
+
+        #passwordSection input:focus {
+            border-color: var(--brand, #3f6b52);
+            outline: 0;
+            box-shadow: 0 0 0 3px rgba(63, 107, 82, 0.15);
+        }
+
+        #passwordSection #verificationCode {
+            letter-spacing: 0.4em;
+            font-size: 20px;
+            text-align: center;
+        }
+
+        #passwordSection .pw-email {
+            margin: 0 0 14px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: var(--paper, #f6f1e6);
+            color: var(--text, #2c3228);
+            line-height: 1.6;
+        }
+
+        #passwordSection .pw-email strong {
+            color: var(--brand, #3f6b52);
+        }
+
+        #passwordSection button.pw-button {
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px 16px;
+            border: 0;
+            border-radius: 999px;
+            background: var(--brand, #3f6b52);
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #passwordSection button.pw-button:hover:not(:disabled) {
+            background: var(--brand-dark, #2d5240);
+        }
+
+        #passwordSection button.pw-button.pw-secondary {
+            border: 1px solid var(--brand, #3f6b52);
+            background: #ffffff;
+            color: var(--brand, #3f6b52);
+        }
+
+        #passwordSection button.pw-button.pw-secondary:hover:not(:disabled) {
+            background: var(--paper, #f6f1e6);
+        }
+
+        #passwordSection button.pw-button:disabled {
+            border-color: #d7ddd3;
+            background: #e6ebe3;
+            color: #7a8476;
+            cursor: not-allowed;
+        }
+
+        #passwordSection .pw-step-title {
+            margin: 22px 0 0;
+            font-family: var(--serif, serif);
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        #passwordSection .pw-message {
+            margin: 14px 0 0;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--ok-bg, #e8f3ea);
+            color: var(--ok-text, #1f6b3a);
+            line-height: 1.6;
+            text-align: left;
+        }
+
+        #passwordSection .pw-message.error {
+            background: var(--err-bg, #fbeaea);
+            color: var(--err-text, #9b1c1c);
+        }
+
+        #passwordSection .field-note {
+            margin: 6px 0 0;
+        }
+    </style>
 </head>
 <body>
 <header>
@@ -14,6 +140,8 @@
             <a href="/page/books">書籍列表</a>
             <a href="/page/cart">購物車</a>
             <a href="/page/orders">我的訂單</a>
+            <!-- 捷徑：展開並跳到下方的「修改密碼」區塊。其他頁面也可以直接連到 /page/profile#password -->
+            <a href="#password" id="passwordShortcut" class="pw-shortcut">修改密碼</a>
         </nav>
     </div>
 </header>
@@ -44,6 +172,43 @@
 
         <button id="saveButton" type="button" disabled>儲存</button>
     </form>
+
+    <!-- 修改密碼：先寄驗證碼到信箱，通過驗證才能設定新密碼 -->
+    <section id="passwordSection" aria-labelledby="passwordTitle">
+        <h2 id="passwordTitle">修改密碼</h2>
+        <p class="hint">為了保護你的帳號，修改密碼前需要先通過 Email 驗證。</p>
+
+        <button id="passwordToggle" class="pw-button pw-secondary" type="button"
+                aria-expanded="false" aria-controls="passwordPanel">我要修改密碼</button>
+
+        <div id="passwordPanel" hidden>
+            <p class="pw-step-title">步驟 1　驗證信箱</p>
+            <p id="verifyEmailLine" class="pw-email"></p>
+            <button id="sendCodeButton" class="pw-button" type="button" disabled>寄送驗證碼</button>
+
+            <form id="passwordForm" novalidate hidden>
+                <p class="pw-step-title">步驟 2　輸入驗證碼並設定新密碼</p>
+
+                <label for="verificationCode">信箱收到的 6 位數驗證碼</label>
+                <input id="verificationCode" name="verificationCode" type="text"
+                       inputmode="numeric" pattern="\d{6}" maxlength="6"
+                       autocomplete="one-time-code" placeholder="000000">
+
+                <label for="newPassword">新密碼</label>
+                <input id="newPassword" name="newPassword" type="password"
+                       minlength="6" maxlength="12" autocomplete="new-password">
+                <p class="field-note">長度需介於 6 到 12 個字元。</p>
+
+                <label for="confirmNewPassword">確認新密碼</label>
+                <input id="confirmNewPassword" name="confirmNewPassword" type="password"
+                       maxlength="12" autocomplete="new-password">
+
+                <button id="changePasswordButton" class="pw-button" type="button">確認修改密碼</button>
+            </form>
+
+            <p id="passwordMessage" class="pw-message" role="status" hidden></p>
+        </div>
+    </section>
 </main>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -107,6 +272,9 @@
 
     let memberId = null;
 
+    // 目前「已儲存」在系統裡的 Email（驗證碼會寄到這個信箱，不是輸入框裡還沒儲存的內容）。
+    let savedEmail = "";
+
     function loadProfile() {
         const request = apiAjax({ url: `/members/${memberId}`, method: "GET" });
         if (!request) {
@@ -121,6 +289,8 @@
                 $("#gender").val(String(member.gender));
                 $("#email").val(member.email || "");
                 $("#saveButton").prop("disabled", false);
+                savedEmail = member.email || "";
+                refreshVerifyEmail();
             })
             .fail(function (xhr) {
                 saveNewTokens(xhr);
@@ -165,6 +335,11 @@
             .done(function (data, textStatus, xhr) {
                 saveNewTokens(xhr);
                 showMessage((data && data.message) || "會員基本資料修改成功", false);
+                // 有填 Email 才會更新，儲存成功後驗證信箱也跟著更新。
+                if (email) {
+                    savedEmail = email;
+                    refreshVerifyEmail();
+                }
             })
             .fail(function (xhr) {
                 saveNewTokens(xhr);
@@ -177,6 +352,186 @@
             .always(function () {
                 button.prop("disabled", false).text("儲存");
             });
+    });
+
+    // ================= 修改密碼（Email 驗證） =================
+    const RESEND_SECONDS = 60;
+    let cooldownTimer = null;
+
+    // 信箱遮罩：ab***@gmail.com
+    function maskEmail(email) {
+        const at = email.indexOf("@");
+        if (at <= 0) { return "***"; }
+        const name = email.slice(0, at);
+        return name.slice(0, name.length <= 2 ? 1 : 2) + "***" + email.slice(at);
+    }
+
+    function showPasswordMessage(text, isError) {
+        $("#passwordMessage").text(text).toggleClass("error", !!isError).prop("hidden", false);
+    }
+
+    // 依目前已儲存的 Email 更新「驗證信箱」那一行與寄送按鈕。
+    function refreshVerifyEmail() {
+        const line = $("#verifyEmailLine").empty();
+
+        if (!savedEmail) {
+            line.text("你還沒有設定 Email，請先在上方填寫並按「儲存」，才能寄送驗證碼。");
+            $("#sendCodeButton").prop("disabled", true);
+            return;
+        }
+
+        line.append(document.createTextNode("驗證碼會寄到："))
+            .append($("<strong>").text(maskEmail(savedEmail)));
+        if (cooldownTimer === null) {
+            $("#sendCodeButton").prop("disabled", false);
+        }
+    }
+
+    // 寄出驗證碼後，按鈕倒數 60 秒才能再按（後端也有同樣的限制）。
+    function startCooldown() {
+        let remaining = RESEND_SECONDS;
+        const button = $("#sendCodeButton");
+
+        clearInterval(cooldownTimer);
+        button.prop("disabled", true).text("重新寄送（" + remaining + "）");
+        cooldownTimer = setInterval(function () {
+            remaining -= 1;
+            if (remaining <= 0) {
+                clearInterval(cooldownTimer);
+                cooldownTimer = null;
+                button.text("重新寄送驗證碼");
+                refreshVerifyEmail();
+                return;
+            }
+            button.text("重新寄送（" + remaining + "）");
+        }, 1000);
+    }
+
+    // 展開修改密碼區塊；fromShortcut 為 true 時會捲動到這個區塊。
+    function openPasswordPanel(fromShortcut) {
+        $("#passwordPanel").prop("hidden", false);
+        $("#passwordToggle").attr("aria-expanded", "true").prop("hidden", true);
+        if (fromShortcut) {
+            document.getElementById("passwordSection").scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (!$("#sendCodeButton").prop("disabled")) {
+            $("#sendCodeButton").trigger("focus");
+        }
+    }
+
+    // 捷徑按鈕與區塊內的按鈕都是展開同一個區塊
+    $("#passwordShortcut").on("click", function (event) {
+        event.preventDefault();
+        history.replaceState(null, "", "#password");
+        openPasswordPanel(true);
+    });
+
+    $("#passwordToggle").on("click", function () {
+        openPasswordPanel(false);
+    });
+
+    // 步驟 1：寄送驗證碼
+    $("#sendCodeButton").on("click", function () {
+        const button = $(this);
+        $("#passwordMessage").prop("hidden", true);
+        button.prop("disabled", true).text("寄送中");
+
+        const request = apiAjax({
+            url: `/members/${memberId}/password-code`,
+            method: "POST"
+        });
+        if (!request) {
+            return;
+        }
+
+        request
+            .done(function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+                showPasswordMessage((data && data.message) || "驗證碼已寄出，請到信箱查看", false);
+                $("#passwordForm").prop("hidden", false);
+                $("#verificationCode").trigger("focus");
+                startCooldown();
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+                showPasswordMessage(getErrorMessage(xhr, "寄送驗證碼失敗"), true);
+                button.text("寄送驗證碼");
+                refreshVerifyEmail();
+            });
+    });
+
+    // 步驟 2：帶著驗證碼修改密碼（驗證碼是否正確由後端判斷，沒通過就不會修改）
+    $("#changePasswordButton").on("click", function () {
+        const button = $(this);
+        $("#passwordMessage").prop("hidden", true);
+
+        const code = $("#verificationCode").val().trim();
+        const password = $("#newPassword").val();
+        const confirmPassword = $("#confirmNewPassword").val();
+
+        if (!/^\d{6}$/.test(code)) {
+            showPasswordMessage("請輸入信箱收到的 6 位數驗證碼", true);
+            return;
+        }
+        if (password.length < 6 || password.length > 12) {
+            showPasswordMessage("新密碼長度必須是 6 到 12 個字", true);
+            return;
+        }
+        if (password !== confirmPassword) {
+            showPasswordMessage("新密碼與確認密碼不一致", true);
+            return;
+        }
+
+        button.prop("disabled", true).text("修改中");
+
+        const request = apiAjax({
+            url: `/members/${memberId}/password`,
+            method: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify({
+                verificationCode: code,
+                password: password,
+                confirmPassword: confirmPassword
+            })
+        });
+        if (!request) {
+            return;
+        }
+
+        request
+            .done(function (data, textStatus, xhr) {
+                saveNewTokens(xhr);
+                // 成功後清掉輸入內容並收起步驟 2；驗證碼已作廢，要再改就重新寄送。
+                $("#passwordForm")[0].reset();
+                $("#passwordForm").prop("hidden", true);
+                clearInterval(cooldownTimer);
+                cooldownTimer = null;
+                $("#sendCodeButton").text("寄送驗證碼");
+                refreshVerifyEmail();
+                showPasswordMessage((data && data.message) || "會員密碼修改成功", false);
+            })
+            .fail(function (xhr) {
+                saveNewTokens(xhr);
+                if (xhr.status === 401) {
+                    window.location.href = "/page/login";
+                    return;
+                }
+                showPasswordMessage(getErrorMessage(xhr, "修改密碼失敗"), true);
+            })
+            .always(function () {
+                button.prop("disabled", false).text("確認修改密碼");
+            });
+    });
+
+    $(function () {
+        // 網址帶 #password（例如從其他頁面的捷徑連過來）時，自動展開並捲動到修改密碼區塊。
+        if (window.location.hash === "#password") {
+            openPasswordPanel(true);
+        }
     });
 
     $(function () {
