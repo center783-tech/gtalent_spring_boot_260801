@@ -4,6 +4,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.beans.factory.annotation.Value;
 
 import charlie.gtalent_spring_boot_260801.service.MemberService;
 
@@ -67,6 +68,15 @@ public class PageController {
    public String index() {
    return "index";
    }
+
+   @Value("${line.liff.id:}")
+    private String liffId;
+
+   @GetMapping("/page/liff")
+    public String liffPage(Model model) {
+        model.addAttribute("liffId", liffId);
+        return "liff-profile";
+    }
     
 
 }
