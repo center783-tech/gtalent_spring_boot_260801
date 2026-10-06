@@ -69,9 +69,9 @@ public class PageController {
    return "index";
    }
 
-   @Value("${line.liff.id:}")
+   @Value("${line.liff.id}")
     private String liffId;
-
+    
    @GetMapping("/page/liff")
     public String liffPage(Model model) {
         model.addAttribute("liffId", liffId);
