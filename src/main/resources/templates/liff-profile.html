@@ -233,7 +233,13 @@
                handleLoginSuccess(tokenResponse);
            })
            .fail(function (xhr) {
-               if (xhr.status === 404) {
+               const response = xhr.responseJSON || {};
+               const lineUidNotFound = response.errors
+                       && response.errors.lineUid === "找不到會員";
+
+               // ResourceNotFoundException 在目前 API 規則下回傳 400，
+               // 但「lineUid 找不到」代表尚未綁定，應該顯示綁定表單。
+               if (xhr.status === 404 || lineUidNotFound) {
                    // 抓不到會員資料 → 跳到帳號密碼輸入畫面（步驟 2）。
                    hideAllStates();
                    bindSection.style.display = "block";
