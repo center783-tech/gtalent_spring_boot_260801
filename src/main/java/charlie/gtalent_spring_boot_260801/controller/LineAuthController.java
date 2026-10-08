@@ -13,8 +13,12 @@ import charlie.gtalent_spring_boot_260801.response.TokenResponse;
 import charlie.gtalent_spring_boot_260801.service.MemberService;
 import jakarta.validation.Valid;
 
-// LIFF（LINE 內建瀏覽器）登入用的 API。
-// 這兩支和 /members/login 一樣是登入流程本身，不需要先登入，AuthInterceptor 不應該攔截 /line/**。
+/**
+ * LINE LIFF authentication endpoints.
+ *
+ * <p>The actual login and binding logic is handled by {@link MemberService}.
+ * This controller is responsible only for request validation and routing.</p>
+ */
 @RestController
 @RequestMapping("/line")
 public class LineAuthController {
@@ -25,16 +29,18 @@ public class LineAuthController {
         this.memberService = memberService;
     }
 
-    // 步驟 1：只帶 LINE 使用者 ID 嘗試登入。
-    // 找到已綁定的會員就回 200 + token；找不到則由 GlobalExceptionHandler 回 404（MEMBER_NOT_FOUND），
-    // 前端收到 404 就改顯示帳號密碼輸入畫面，呼叫下面的 /line/bind。
+    /**
+     * Logs in a LINE account that has already been bound to a member.
+     */
     @PostMapping("/login")
     @ResponseStatus(HttpStatus.OK)
     public TokenResponse lineLogin(@Valid @RequestBody LineLoginRequest request) {
         return memberService.lineLogin(request);
     }
 
-    // 步驟 2：帶著 lineUid + 既有帳號密碼，綁定既有會員或新建會員。
+    /**
+     * 「綁定 LINE 帳號到現有會員；若該帳號尚不存在，則建立新的會員。」
+     */
     @PostMapping("/bind")
     @ResponseStatus(HttpStatus.OK)
     public TokenResponse lineBind(@Valid @RequestBody LineBindRequest request) {
