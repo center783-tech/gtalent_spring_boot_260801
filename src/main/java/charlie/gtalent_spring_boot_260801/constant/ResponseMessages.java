@@ -22,7 +22,7 @@ public final class ResponseMessages {
     public static final String MAIL_SUBJECT_MAX         = "10007"; // 信件標題超過長度限制。
     public static final String MAIL_CONTENT_REQUIRED    = "10008"; // 信件內容未填。
     public static final String MAIL_CONTENT_MAX         = "10009"; // 信件內容超過長度限制。
-        public static final String MEMBER_NAME_REQUIRED     = "10010"; // 會員姓名未填。
+    public static final String MEMBER_NAME_REQUIRED     = "10010"; // 會員姓名未填。
     public static final String MEMBER_NAME_MAX          = "10011"; // 會員姓名超過長度限制。
     public static final String MEMBER_GENDER_REQUIRED   = "10012"; // 會員性別未填。
     public static final String MEMBER_GENDER_INVALID    = "10013"; // 會員性別不合法。
@@ -44,6 +44,7 @@ public final class ResponseMessages {
     public static final String CART_BOOK_ID_REQUIRED    = "10029"; // 購物車：書籍 id 未填。
     public static final String CART_QUANTITY_REQUIRED   = "10030"; // 購物車：數量未填。
     public static final String PASSWORD_CHANGE_CODE_REQUIRED = "10031";
+    public static final String LINE_UID_REQUIRED          = "10032"; // LINE 使用者 ID 未填。
 
 
     // 20000 區間：資料庫寫入相關錯誤。
@@ -71,6 +72,8 @@ public final class ResponseMessages {
     public static final String PASSWORD_CHANGE_CODE_INVALID = "40013";
     public static final String PASSWORD_CHANGE_CODE_TOO_MANY = "40014";
     public static final String PASSWORD_CHANGE_CODE_COOLDOWN = "40015";
+    public static final String LINE_ALREADY_BOUND         = "40016"; // 這個 LINE 帳號已經綁定過其他會員。
+    public static final String LINE_ACCOUNT_ALREADY_LINKED = "40017"; // 這個會員帳號已經綁定過其他 LINE。
 
     public static final String MAIL_SEND_FAILED         = "50000"; // 電子郵件寄送失敗。
     
@@ -135,6 +138,9 @@ public final class ResponseMessages {
         messages.put(PASSWORD_CHANGE_CODE_INVALID, "驗證碼錯誤或已過期");
         messages.put(PASSWORD_CHANGE_CODE_TOO_MANY, "驗證碼輸入錯誤次數過多，請重新寄送驗證碼");
         messages.put(PASSWORD_CHANGE_CODE_COOLDOWN, "驗證碼剛寄出，請稍候一分鐘再重新寄送");
+        messages.put(LINE_UID_REQUIRED,          "LINE 使用者 ID 必填");
+        messages.put(LINE_ALREADY_BOUND,         "此 LINE 帳號已經綁定過其他會員");
+        messages.put(LINE_ACCOUNT_ALREADY_LINKED, "此帳號已經綁定過其他 LINE，請改用原本綁定的 LINE 登入");
         return messages;
     }
 
