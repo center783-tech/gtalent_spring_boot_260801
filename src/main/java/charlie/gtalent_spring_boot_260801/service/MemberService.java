@@ -23,12 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
 import charlie.gtalent_spring_boot_260801.constant.AuthOwnerTypes;
 import charlie.gtalent_spring_boot_260801.constant.ResponseMessages;
 import charlie.gtalent_spring_boot_260801.entity.AuthToken;
+import charlie.gtalent_spring_boot_260801.entity.LineAccount;
 import charlie.gtalent_spring_boot_260801.entity.Member;
 import charlie.gtalent_spring_boot_260801.entity.PasswordChangeCode;
 import charlie.gtalent_spring_boot_260801.entity.PasswordResetToken;
 import charlie.gtalent_spring_boot_260801.exception.MemberAccountExcption;
 import charlie.gtalent_spring_boot_260801.exception.ResourceNotFoundException;
 import charlie.gtalent_spring_boot_260801.repository.AuthTokenRepository;
+import charlie.gtalent_spring_boot_260801.repository.LineAccountRepository;
 import charlie.gtalent_spring_boot_260801.repository.MemberRepository;
 import charlie.gtalent_spring_boot_260801.repository.PasswordChangeCodeRepository;
 import charlie.gtalent_spring_boot_260801.repository.PasswordResetTokenRepository;
@@ -36,6 +38,8 @@ import charlie.gtalent_spring_boot_260801.request.MemberForgotPasswordRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberLoginRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberPasswordUpdateRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberProfileUpdateRequest;
+import charlie.gtalent_spring_boot_260801.request.LineBindRequest;
+import charlie.gtalent_spring_boot_260801.request.LineLoginRequest;
 import charlie.gtalent_spring_boot_260801.request.MemberRegisterRequest;
 import charlie.gtalent_spring_boot_260801.request.MemeberPasswordResetRequest;
 import charlie.gtalent_spring_boot_260801.response.MemberResponse;
@@ -55,6 +59,9 @@ public class MemberService {
     // 修改密碼的 Email 驗證碼（用法和上面的 passwordResetTokenRepository 一樣，用欄位注入）。
     @Autowired
     private PasswordChangeCodeRepository passwordChangeCodeRepository;
+    // LINE 帳號綁定（LIFF 登入）用，獨立一張表，不碰 Member 本身。
+    @Autowired
+    private LineAccountRepository lineAccountRepository;
     private Byte TOKEN_REVOKED = 1;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -346,7 +353,114 @@ public class MemberService {
             throw new MemberAccountExcption("password", ResponseMessages.MEMBER_LOGIN_FAILED);
         }
 
-        // 發 token 後把 hash 與過期時間存 MySQL，供 logout / rotation / token 檢查使用。
+        return issueToken(member);
+    }
+
+    // ================= LIFF（LINE）登入 =================
+    //
+    // LINE 帳號與會員的綁定關係存在獨立的 line_accounts 表（LineAccount），不碰 Member 本身。
+    //
+    // 流程（對應 /page/liff 頁面）：
+    // 1. 前端先呼叫 lineLogin(lineUid)：查 line_accounts 有沒有這個 lineUid 的綁定中紀錄，
+    //    有的話取出 member_id 找出會員，直接發 token 完成登入。
+    // 2. 找不到（MEMBER_NOT_FOUND）時，前端改請使用者輸入既有的帳號密碼，
+    //    連同 lineUid 一起呼叫 lineBindOrRegister：
+    //      - 帳號密碼對得上、且該會員還沒有綁定中的 LINE 帳號 → 新增一筆 line_accounts（綁定）。
+    //      - 帳號密碼對得上、但該會員已經綁過「別的」LINE → 視為帳號衝突，拒絕。
+    //      - 帳號不存在 → 用傳入的 account / password 新建一個會員（視同註冊），再綁定這個 lineUid。
+    //      - 帳號存在但密碼錯誤 → 一律視為帳號或密碼錯誤，不會因此新建帳號，避免被用來亂槍打鳥建帳號。
+
+    // 步驟 1：只憑 lineUid 嘗試登入。找不到綁定中的紀錄時丟 ResourceNotFoundException，
+    // 前端看到 404（MEMBER_NOT_FOUND）就知道要切換到輸入帳號密碼的畫面。
+    // 如果前端這次有帶最新的 LINE 顯示名稱 / 大頭貼 / 狀態訊息，順便更新 line_accounts 的快照。
+    @Transactional
+    public TokenResponse lineLogin(LineLoginRequest request) {
+        String lineUid = request.getLineUid().trim();
+        LineAccount lineAccount = lineAccountRepository.findActiveByLineUid(lineUid)
+                .orElseThrow(() -> new ResourceNotFoundException("lineUid", ResponseMessages.MEMBER_NOT_FOUND));
+
+        updateLineProfileSnapshot(lineAccount, request.getDisplayName(), request.getPictureUrl(), request.getStatusMessage());
+
+        Member member = findOneById(lineAccount.getMemberId());
+        return issueToken(member);
+    }
+
+    // 步驟 2：用帳號密碼「綁定既有會員」或「新建會員」，並在 line_accounts 新增一筆綁定紀錄。
+    @Transactional
+    public TokenResponse lineBindOrRegister(LineBindRequest request) {
+        String lineUid = request.getLineUid().trim();
+        String account = request.getAccount().trim();
+
+        // 理論上呼叫這支之前，前端已經用 lineLogin 確認過這個 lineUid 還沒被任何人綁定；
+        // 這裡仍保險地再查一次，避免兩個分頁同時操作造成一個 LINE 帳號綁到兩個會員。
+        if (lineAccountRepository.findActiveByLineUid(lineUid).isPresent()) {
+            throw new MemberAccountExcption("lineUid", ResponseMessages.LINE_ALREADY_BOUND);
+        }
+
+        Optional<Member> existing = repository.findOneByAccountAndStatus(account);
+
+        Member member;
+        if (existing.isEmpty()) {
+            // 2.2　帳號不存在 → 用傳入的帳號密碼新建會員。
+            // Member 的 name / gender 不能是 null：name 用 LINE 顯示名稱當預設值（沒有就用帳號代替），
+            // gender 先填「其他」，會員之後可以在會員資料頁自行修改。
+            String displayName = request.getDisplayName() == null || request.getDisplayName().isBlank()
+                    ? account
+                    : request.getDisplayName().trim();
+
+            member = new Member(displayName, (byte) 0, account, null,
+                    passwordEncoder.encode(request.getPassword()));
+
+            try {
+                repository.save(member);
+            } catch (DataIntegrityViolationException exception) {
+                // 帳號在上面查詢之後、save 之前被別人搶註冊的極端情況。
+                throw new MemberAccountExcption("account", ResponseMessages.MEMBER_ACCOUNT_EXISTS);
+            }
+        } else {
+            member = existing.get();
+
+            // 密碼一律要對得上，不然任何人都可以亂猜帳號去綁自己的 LINE。
+            if (!passwordEncoder.matches(request.getPassword(), member.getPassword())) {
+                throw new MemberAccountExcption("password", ResponseMessages.MEMBER_LOGIN_FAILED);
+            }
+
+            // 2.1 的反面：帳號密碼對了，但這個會員已經綁過「別的」LINE 帳號。
+            if (lineAccountRepository.findActiveByMemberId(member.getId()).isPresent()) {
+                throw new MemberAccountExcption("lineUid", ResponseMessages.LINE_ACCOUNT_ALREADY_LINKED);
+            }
+        }
+
+        // 2.1　帳號密碼對得上、且尚未綁定 → 在 line_accounts 新增一筆綁定紀錄。
+        LineAccount lineAccount = new LineAccount(
+                member.getId(), lineUid, request.getDisplayName(), request.getPictureUrl(), request.getStatusMessage());
+
+        try {
+            lineAccountRepository.save(lineAccount);
+        } catch (DataIntegrityViolationException exception) {
+            // 極端情況：上面查過之後，這個 lineUid 又被別人搶先綁走了。
+            throw new MemberAccountExcption("lineUid", ResponseMessages.LINE_ALREADY_BOUND);
+        }
+
+        return issueToken(member);
+    }
+
+    // 更新 line_accounts 的 LINE 資料快照；三個欄位都是選填，前端沒有送就維持原樣。
+    private void updateLineProfileSnapshot(LineAccount lineAccount, String displayName, String pictureUrl, String statusMessage) {
+        if (displayName != null && !displayName.isBlank()) {
+            lineAccount.setDisplayName(displayName.trim());
+        }
+        if (pictureUrl != null && !pictureUrl.isBlank()) {
+            lineAccount.setPictureUrl(pictureUrl.trim());
+        }
+        if (statusMessage != null && !statusMessage.isBlank()) {
+            lineAccount.setStatusMessage(statusMessage.trim());
+        }
+    }
+
+    // 發 token 後把 hash 與過期時間存 MySQL，供 logout / rotation / token 檢查使用。
+    // login()、lineLogin()、lineBindOrRegister() 共用這段邏輯，確保發 token 的方式完全一致。
+    private TokenResponse issueToken(Member member) {
         String ownerType = AuthOwnerTypes.MEMBER;
         Long ownerId = member.getId();
         LocalDateTime accessExpiresAt = jwtService.getAccessExpiresAt();

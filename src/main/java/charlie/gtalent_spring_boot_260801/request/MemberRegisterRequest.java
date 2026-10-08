@@ -39,4 +39,8 @@ public class MemberRegisterRequest {
     @Min(value = 0, message = ResponseMessages.MEMBER_GENDER_INVALID)
     @Max(value = 2, message = ResponseMessages.MEMBER_GENDER_INVALID)
     private Byte gender;
+
+    public CharSequence getPassword() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
 }
