@@ -4,7 +4,7 @@
    <meta charset="UTF-8">
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <meta id="liffId" name="liff-id" content="" th:content="${liffId}">
-   <title>LINE 個人資料</title>
+   <title>LINE 登入</title>
    <style>
        * { box-sizing: border-box; }
        body {
@@ -27,12 +27,22 @@
        }
        h1 { margin: 0 0 24px; font-size: 24px; }
        #loading { color: #667085; }
-       #error {
+       .error {
            display: none;
+           margin: 0 0 16px;
            padding: 12px;
            border-radius: 8px;
            background: #fff0f0;
            color: #b42318;
+           text-align: left;
+       }
+       .message {
+           display: none;
+           margin: 0 0 16px;
+           padding: 12px;
+           border-radius: 8px;
+           background: #eafaf0;
+           color: #0b6b3a;
            text-align: left;
        }
        #profile { display: none; }
@@ -49,6 +59,7 @@
        dd { margin: 0; overflow-wrap: anywhere; }
        button {
            width: 100%;
+           margin-top: 12px;
            padding: 12px 16px;
            border: 0;
            border-radius: 8px;
@@ -58,15 +69,74 @@
            font-weight: 700;
            cursor: pointer;
        }
+       button:disabled {
+           cursor: not-allowed;
+           background: #a8d9bf;
+       }
+       button.secondary {
+           background: #fff;
+           color: #344054;
+           border: 1px solid #d0d5dd;
+       }
+
+       /* 步驟 2：帳號密碼綁定表單 */
+       #bindSection { display: none; text-align: left; }
+       #bindSection p.lead {
+           margin: 0 0 20px;
+           color: #475467;
+           line-height: 1.6;
+           text-align: center;
+       }
+       #bindSection label {
+           display: block;
+           margin: 14px 0 6px;
+           font-weight: 700;
+           font-size: 14px;
+       }
+       #bindSection input {
+           width: 100%;
+           padding: 11px 12px;
+           border: 1px solid #d0d5dd;
+           border-radius: 8px;
+           font-size: 16px;
+       }
+       #bindSection .hint {
+           margin: 16px 0 0;
+           padding: 10px 12px;
+           border-radius: 8px;
+           background: #f5f7f9;
+           color: #667085;
+           font-size: 13px;
+           line-height: 1.6;
+       }
    </style>
 </head>
 <body>
 <main>
-   <h1>LINE 個人資料</h1>
+   <h1>LINE 登入</h1>
    <p id="loading">正在讀取 LINE 資料...</p>
-   <p id="error"></p>
+   <p id="error" class="error" role="alert"></p>
+   <p id="message" class="message" role="status"></p>
 
+   <!-- 步驟 2：第一步用 lineUid 找不到會員時，請使用者輸入既有帳號密碼，連同 lineUid 一起送到後端。
+        後端會判斷：帳號密碼對得上且尚未綁定 → 直接綁定；帳號不存在 → 直接用這組帳號密碼建立新會員。 -->
+   <section id="bindSection">
+       <p class="lead">這個 LINE 帳號還沒有綁定會員。<br>請輸入既有的帳號密碼完成綁定；如果你還沒有帳號，直接填入想要的帳號密碼，系統會自動幫你建立。</p>
 
+       <form id="bindForm">
+           <label for="account">帳號</label>
+           <input id="account" type="text" maxlength="30" autocomplete="username" required>
+
+           <label for="password">密碼</label>
+           <input id="password" type="password" minlength="6" maxlength="12" autocomplete="current-password" required>
+
+           <button id="bindButton" type="button">綁定 / 建立帳號並登入</button>
+       </form>
+
+       <p class="hint">提示：如果輸入的帳號目前不存在，系統會直接用這組帳號密碼幫你建立一個新會員，請牢記這組密碼。</p>
+   </section>
+
+   <!-- 步驟 3：確認比對到會員資料（不論是原本就綁定，或這次剛綁定／新建），顯示 LINE 個人資料並完成網站登入。 -->
    <section id="profile">
        <img id="picture" alt="LINE 大頭貼">
        <dl>
@@ -83,25 +153,153 @@
                <dd id="statusMessage">—</dd>
            </div>
        </dl>
-       <button id="logoutButton" type="button">登出 LINE</button>
+       <button id="enterButton" type="button">進入書店</button>
+       <button id="logoutButton" type="button" class="secondary">登出</button>
    </section>
 </main>
 
-
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
    const loadingElement = document.getElementById("loading");
    const errorElement = document.getElementById("error");
+   const messageElement = document.getElementById("message");
+   const bindSection = document.getElementById("bindSection");
    const profileElement = document.getElementById("profile");
 
+   let lineProfile = null; // { userId, displayName, pictureUrl, statusMessage }
 
-   function showError(message) {
+   function hideAllStates() {
        loadingElement.style.display = "none";
+       errorElement.style.display = "none";
+       messageElement.style.display = "none";
+       bindSection.style.display = "none";
        profileElement.style.display = "none";
-       errorElement.textContent = message;
+   }
+
+   function showError(text) {
+       hideAllStates();
+       errorElement.textContent = text;
        errorElement.style.display = "block";
    }
 
+   // 從後端錯誤回應取出要顯示給使用者的訊息（跟網站其他頁面一致的寫法）。
+   function errorMessageFrom(xhr, fallback) {
+       const data = xhr.responseJSON || {};
+       if (data.errors && typeof data.errors === "object") {
+           const first = Object.values(data.errors)[0];
+           if (first) { return first; }
+       }
+       return data.message || fallback;
+   }
+
+   // 登入成功：把 token 存起來（跟網站其他頁面相同的 key），顯示 LINE 資料，並給一個進入書店的按鈕。
+   function handleLoginSuccess(tokenResponse) {
+       localStorage.setItem("accessToken", tokenResponse.accessToken);
+       localStorage.setItem("refreshToken", tokenResponse.refreshToken);
+
+       hideAllStates();
+
+       document.getElementById("displayName").textContent = lineProfile.displayName || "—";
+       document.getElementById("userId").textContent = lineProfile.userId || "—";
+       document.getElementById("statusMessage").textContent = lineProfile.statusMessage || "—";
+
+       const picture = document.getElementById("picture");
+       if (lineProfile.pictureUrl) {
+           picture.src = lineProfile.pictureUrl;
+           picture.style.display = "";
+       } else {
+           picture.style.display = "none";
+       }
+
+       profileElement.style.display = "block";
+   }
+
+   // 步驟 1：只用 lineUid 嘗試登入。
+   function tryLineLogin() {
+       $.ajax({
+           url: "/line/login",
+           method: "POST",
+           contentType: "application/json",
+           data: JSON.stringify({
+               lineUid: lineProfile.userId,
+               displayName: lineProfile.displayName || "",
+               pictureUrl: lineProfile.pictureUrl || "",
+               statusMessage: lineProfile.statusMessage || ""
+           })
+       })
+           .done(function (tokenResponse) {
+               // 比對到會員資料 → 直接完成登入（步驟 3）。
+               handleLoginSuccess(tokenResponse);
+           })
+           .fail(function (xhr) {
+               if (xhr.status === 404) {
+                   // 抓不到會員資料 → 跳到帳號密碼輸入畫面（步驟 2）。
+                   hideAllStates();
+                   bindSection.style.display = "block";
+                   return;
+               }
+               showError(errorMessageFrom(xhr, "登入失敗，請稍後再試"));
+           });
+   }
+
+   // 步驟 2：送出帳號密碼 + lineUid，由後端判斷是綁定既有帳號還是新建帳號。
+   $("#bindButton").on("click", function () {
+       const button = $(this);
+       errorElement.style.display = "none";
+
+       const account = $("#account").val().trim();
+       const password = $("#password").val();
+
+       if (!account || !password) {
+           showErrorInline("請輸入帳號和密碼");
+           return;
+       }
+
+       button.prop("disabled", true).text("處理中");
+
+       $.ajax({
+           url: "/line/bind",
+           method: "POST",
+           contentType: "application/json",
+           data: JSON.stringify({
+               lineUid: lineProfile.userId,
+               account: account,
+               password: password,
+               displayName: lineProfile.displayName || "",
+               pictureUrl: lineProfile.pictureUrl || "",
+               statusMessage: lineProfile.statusMessage || ""
+           })
+       })
+           .done(function (tokenResponse) {
+               handleLoginSuccess(tokenResponse);
+           })
+           .fail(function (xhr) {
+               showErrorInline(errorMessageFrom(xhr, "綁定失敗，請確認帳號密碼"));
+           })
+           .always(function () {
+               button.prop("disabled", false).text("綁定 / 建立帳號並登入");
+           });
+   });
+
+   // 步驟 2 畫面內顯示錯誤，不要整頁跳掉（讓使用者可以修正後重送）。
+   function showErrorInline(text) {
+       errorElement.textContent = text;
+       errorElement.style.display = "block";
+   }
+
+   $("#enterButton").on("click", function () {
+       window.location.href = "/page/books";
+   });
+
+   $("#logoutButton").on("click", function () {
+       localStorage.removeItem("accessToken");
+       localStorage.removeItem("refreshToken");
+       if (window.liff && liff.isLoggedIn()) {
+           liff.logout();
+       }
+       window.location.reload();
+   });
 
    async function initializeLiff() {
        const liffId = document.getElementById("liffId").content.trim();
@@ -110,45 +308,29 @@
            return;
        }
 
-
        try {
            await liff.init({ liffId, withLoginOnExternalBrowser: true });
-
 
            if (!liff.isLoggedIn()) {
                liff.login({ redirectUri: window.location.href });
                return;
            }
 
-
            const profile = await liff.getProfile();
-           document.getElementById("displayName").textContent = profile.displayName || "—";
-           document.getElementById("userId").textContent = profile.userId || "—";
-           document.getElementById("statusMessage").textContent = profile.statusMessage || "—";
+           lineProfile = {
+               userId: profile.userId,
+               displayName: profile.displayName,
+               pictureUrl: profile.pictureUrl,
+               statusMessage: profile.statusMessage
+           };
 
-
-           const picture = document.getElementById("picture");
-           if (profile.pictureUrl) {
-               picture.src = profile.pictureUrl;
-           } else {
-               picture.style.display = "none";
-           }
-
-
-           loadingElement.style.display = "none";
-           profileElement.style.display = "block";
+           // 拿到 LINE 的 userId 後，交給後端判斷接下來要走哪一步（對應步驟 1）。
+           tryLineLogin();
        } catch (error) {
            console.error(error);
            showError("LIFF 初始化失敗：" + (error.message || "請稍後再試"));
        }
    }
-
-
-   document.getElementById("logoutButton").addEventListener("click", function () {
-       liff.logout();
-       window.location.reload();
-   });
-
 
    initializeLiff();
 </script>
