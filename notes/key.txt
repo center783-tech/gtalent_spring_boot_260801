@@ -1,0 +1,13 @@
+ssh-keygen -t ed25519 -C "center783@gmail.com"
+C:\aws\10\github_connect_2610
+
+eval "$(ssh-agent -s)"
+ssh-add "C:/aws/10/github_connect_2610"
+
+ssh -i "C:/aws/10/github_connect_2610" -T git@github.com
+
+
+
+curl.exe -v `
+-F "file=@C:\Users\USER\Downloads\members.xlsx" `
+http://localhost:8080/excel/import

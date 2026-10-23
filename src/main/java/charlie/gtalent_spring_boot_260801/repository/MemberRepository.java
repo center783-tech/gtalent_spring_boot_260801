@@ -1,6 +1,7 @@
 package charlie.gtalent_spring_boot_260801.repository;
 
 import java.util.Optional;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +45,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
         nativeQuery = true
     )
     Page<Member> findAllActive(Pageable pageable);
+
+    List<Member> findByAccountIn(List<String> accounts);
 
     // 會員忘記密碼用 account or email 查詢，status = 1 才能登入。
     @Query(
