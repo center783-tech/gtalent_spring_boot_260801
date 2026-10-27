@@ -79,5 +79,18 @@ public class PageController {
         return "liff-profile";
     }
     
+    @GetMapping("/page/demo/polling")
+    public String pollingPage() {
+        return "polling";
+    }
 
+    @GetMapping("/page/demo/sse")
+    public String ssePage() {
+        return "sse";
+    }
+
+     @GetMapping("/page/demo/websocket")
+    public String websocketPage() {
+        return "websocket";
+    }
 }
