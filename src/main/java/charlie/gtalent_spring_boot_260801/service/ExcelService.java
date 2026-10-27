@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,6 +41,12 @@ public class ExcelService {
 
     private static final int MAX_ROWS = 100000;
     private static final long MAX_FILE_SIZE = 5L * 1024 * 1024;
+    public record MemberQuery(
+        String account,
+        String name,
+        Byte gender,
+        Byte status
+) {}
 
     private static final String[] HEADERS = {
         "帳號", "姓名", "性別", "Email", "狀態", "密碼"
@@ -61,10 +68,48 @@ public class ExcelService {
         this.passwordEncoder = passwordEncoder;
     }
 
-       public byte[] exportMembers() throws IOException {
+    // 可匯出的欄位：key -> (標題, 取值)，順序即預設匯出順序
+    private static final Map<String, ExportColumn> EXPORT_COLUMNS = new LinkedHashMap<>();
+
+    private record ExportColumn(String title, Function<Member, Object> getter) {}
+
+    static {
+        EXPORT_COLUMNS.put("id", new ExportColumn("ID", Member::getId));
+        EXPORT_COLUMNS.put("name", new ExportColumn("姓名", Member::getName));
+        EXPORT_COLUMNS.put("account", new ExportColumn("帳號", Member::getAccount));
+        EXPORT_COLUMNS.put("gender", new ExportColumn("性別", Member::getGender));
+        EXPORT_COLUMNS.put("email", new ExportColumn("Email", Member::getEmail));
+        EXPORT_COLUMNS.put("status", new ExportColumn("狀態", Member::getStatus));
+    }
+
+       public byte[] exportMembers(MemberQuery query, List<String> selected) throws IOException {
+
+       List<ExportColumn> columns = new ArrayList<>();
+
+       if (selected == null || selected.isEmpty()) {
+           columns.addAll(EXPORT_COLUMNS.values());
+       } else {
+           // 依固定順序輸出，並拒絕未知欄位
+           for (String key : selected) {
+               if (!EXPORT_COLUMNS.containsKey(key)) {
+                   throw new IllegalArgumentException("不支援的匯出欄位：" + key);
+               }
+           }
+           EXPORT_COLUMNS.forEach((key, col) -> {
+               if (selected.contains(key)) {
+                   columns.add(col);
+               }
+           });
+       }
 
 
-       List<Member> members = memberRepository.findAll();
+       List<Member> members =
+            memberRepository.search(
+                    query.account(),
+                    query.name(),
+                    query.gender(),
+                    query.status()
+            );
 
 
        try (Workbook workbook = new XSSFWorkbook();
@@ -73,16 +118,13 @@ public class ExcelService {
 
 
            Sheet sheet = workbook.createSheet("會員資料");
+           Sheet sheet2 = workbook.createSheet("匯入說明");
 
 
            Row header = sheet.createRow(0);
-           String[] columns = {
-               "ID", "姓名", "帳號", "Email", "狀態"
-           };
 
-
-           for (int i = 0; i < columns.length; i++) {
-               header.createCell(i).setCellValue(columns[i]);
+           for (int i = 0; i < columns.size(); i++) {
+               header.createCell(i).setCellValue(columns.get(i).title());
            }
 
 
@@ -92,21 +134,20 @@ public class ExcelService {
            for (Member member : members) {
                Row row = sheet.createRow(rowNum++);
 
+               for (int i = 0; i < columns.size(); i++) {
+                   Object value = columns.get(i).getter().apply(member);
+                   Cell cell = row.createCell(i);
 
-               row.createCell(0).setCellValue(member.getId());
-               row.createCell(1).setCellValue(member.getName());
-               row.createCell(2).setCellValue(member.getAccount());
-               row.createCell(3).setCellValue(
-                   member.getEmail() == null
-                       ? "" : member.getEmail()
-               );
-               row.createCell(4).setCellValue(
-                   member.getStatus()
-               );
+                   if (value instanceof Number n) {
+                       cell.setCellValue(n.doubleValue());
+                   } else {
+                       cell.setCellValue(value == null ? "" : value.toString());
+                   }
+               }
            }
 
 
-           for (int i = 0; i < columns.length; i++) {
+           for (int i = 0; i < columns.size(); i++) {
                sheet.autoSizeColumn(i);
            }
 

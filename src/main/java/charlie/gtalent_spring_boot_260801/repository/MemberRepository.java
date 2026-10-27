@@ -57,5 +57,20 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             @Param("accountOrEmail") String accountOrEmail
     );
 
+    @Query("""
+        SELECT m
+        FROM Member m
+        WHERE (:account IS NULL OR m.account LIKE CONCAT('%', :account, '%'))
+        AND (:name IS NULL OR m.name LIKE CONCAT('%', :name, '%'))
+        AND (:gender IS NULL OR m.gender = :gender)
+        AND (:status IS NULL OR m.status = :status)
+        """)
+        List<Member> search(
+                @Param("account") String account,
+                @Param("name") String name,
+                @Param("gender") Byte gender,
+                @Param("status") Byte status
+        );
+
     
 }

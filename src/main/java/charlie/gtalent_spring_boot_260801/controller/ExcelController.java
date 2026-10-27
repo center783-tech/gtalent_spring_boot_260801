@@ -1,6 +1,7 @@
 package charlie.gtalent_spring_boot_260801.controller;
 
 import java.io.IOException;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -25,13 +26,16 @@ public class ExcelController {
 
    private final ExcelService excelService;
 
-
+   // columns 可複選：id,name,account,gender,email,status；不傳則匯出全部
    @GetMapping("/export")
-   public ResponseEntity<byte[]> export()
+   public ResponseEntity<byte[]> export(
+          ExcelService.MemberQuery query,
+          @RequestParam(required = false) List<String> columns
+   )
            throws IOException {
 
 
-       byte[] excel = excelService.exportMembers();
+       byte[] excel = excelService.exportMembers(query, columns);
 
 
        return ResponseEntity.ok()
